@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { pubkeyToEvmAddress, toChecksumAddress } from "../src/address.js";
-import { deriveVault } from "../src/derive.js";
+import { deriveVault, isValidMnemonic, randomVault } from "../src/derive.js";
 
 // The standard BIP-39 test-vector mnemonic. NEVER fund this.
 const MNEMONIC =
@@ -42,5 +42,23 @@ describe("deriveVault", () => {
   test("pubkeyToEvmAddress round-trips the identity idKey to its address", () => {
     const vault = deriveVault(MNEMONIC);
     expect(pubkeyToEvmAddress(vault.identity.idKey)).toBe(vault.identity.address);
+  });
+});
+
+describe("randomVault (first-run onboarding)", () => {
+  test("generates a valid 12-word mnemonic and a working vault", () => {
+    const { mnemonic, vault } = randomVault();
+    expect(mnemonic.split(" ")).toHaveLength(12);
+    expect(isValidMnemonic(mnemonic)).toBe(true);
+    expect(vault.wallet.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(deriveVault(mnemonic).wallet.address).toBe(vault.wallet.address); // reproducible
+  });
+
+  test("two calls yield different seeds", () => {
+    expect(randomVault().mnemonic).not.toBe(randomVault().mnemonic);
+  });
+
+  test("rejects an invalid mnemonic", () => {
+    expect(isValidMnemonic("not a real mnemonic at all")).toBe(false);
   });
 });

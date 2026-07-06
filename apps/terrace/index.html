@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TIFO</title>
+  <style>
+    :root {
+      --bg: #0f1020; --panel: #1a1b2e; --panel-2: #23243d; --line: #2e2f4a;
+      --ink: #eef0ff; --muted: #9aa0c7; --home: #4ade80; --away: #f87171; --draw: #fbbf24;
+      --accent: #7c6cff; --good: #4ade80;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 15px/1.5 -apple-system, system-ui, sans-serif;
+      background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased;
+    }
+    header {
+      display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+      border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5;
+    }
+    header .logo { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    header .who { margin-left: auto; text-align: right; font-size: 12px; color: var(--muted); }
+    main { padding: 16px; max-width: 640px; margin: 0 auto; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+    .card h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    button {
+      background: var(--accent); color: white; border: 0; border-radius: 10px;
+      padding: 10px 14px; font-weight: 600; cursor: pointer; font-size: 14px;
+    }
+    button.ghost { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+    button:disabled { opacity: 0.45; cursor: default; }
+    input, select {
+      background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px; width: 100%; font-size: 14px;
+    }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .row.tight { gap: 6px; }
+    .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--panel-2); color: var(--muted); }
+    .odds { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 10px; align-items: center; }
+    .bar { height: 8px; border-radius: 6px; background: var(--panel-2); overflow: hidden; }
+    .bar > span { display: block; height: 100%; }
+    .HOME { color: var(--home); } .AWAY { color: var(--away); } .DRAW { color: var(--draw); }
+    .bHOME { background: var(--home); } .bAWAY { background: var(--away); } .bDRAW { background: var(--draw); } .bYES { background: var(--home); } .bNO { background: var(--away); } .bOVER { background: var(--home); } .bUNDER { background: var(--away); }
+    .muted { color: var(--muted); }
+    .stack > * + * { margin-top: 8px; }
+    .chat { max-height: 180px; overflow-y: auto; }
+    .chat .line { padding: 4px 0; border-bottom: 1px solid var(--line); }
+    .gaffer { font-style: italic; color: var(--draw); }
+    .square { color: var(--good); font-weight: 700; }
+    .hidden { display: none; }
+    .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: var(--panel-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">⚽ TIFO</span>
+    <div class="who">
+      <div id="who-name">—</div>
+      <div class="mono" id="who-addr"></div>
+    </div>
+  </header>
+  <main id="app"></main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

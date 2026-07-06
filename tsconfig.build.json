@@ -2,28 +2,31 @@
   "files": [],
   "references": [
     {
+      "path": "packages/market-kernel"
+    },
+    {
+      "path": "packages/terrace-base"
+    },
+    {
+      "path": "packages/sim"
+    },
+    {
+      "path": "packages/wdk-vault"
+    },
+    {
       "path": "packages/crowd-oracle"
     },
     {
       "path": "packages/market-catalogue"
     },
     {
-      "path": "packages/market-kernel"
-    },
-    {
       "path": "packages/qvac-surfaces"
-    },
-    {
-      "path": "packages/sim"
     },
     {
       "path": "packages/steward-escrow"
     },
     {
-      "path": "packages/terrace-base"
-    },
-    {
-      "path": "packages/wdk-vault"
+      "path": "packages/e2e"
     }
   ]
 }

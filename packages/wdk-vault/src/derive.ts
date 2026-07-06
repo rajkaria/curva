@@ -13,7 +13,8 @@
  * the real WDK wallet is only needed to move USDt, in the settlement adapter.
  */
 import { HDKey } from "@scure/bip32";
-import { mnemonicToSeedSync } from "@scure/bip39";
+import { generateMnemonic, mnemonicToSeedSync, validateMnemonic } from "@scure/bip39";
+import { wordlist } from "@scure/bip39/wordlists/english";
 import { secp256k1 } from "@noble/curves/secp256k1";
 import { bytesToHex } from "@noble/hashes/utils";
 import { pubkeyToEvmAddress } from "./address.js";
@@ -46,4 +47,14 @@ function deriveKey(root: HDKey, path: string): DerivedKey {
 export function deriveVault(mnemonic: string, passphrase = ""): Vault {
   const root = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic, passphrase));
   return { wallet: deriveKey(root, WALLET_PATH), identity: deriveKey(root, IDENTITY_PATH) };
+}
+
+export function isValidMnemonic(mnemonic: string): boolean {
+  return validateMnemonic(mnemonic, wordlist);
+}
+
+/** Generate a fresh 12-word seed and its vault — the app's first-run onboarding. */
+export function randomVault(): { mnemonic: string; vault: Vault } {
+  const mnemonic = generateMnemonic(wordlist);
+  return { mnemonic, vault: deriveVault(mnemonic) };
 }

@@ -1,0 +1,25 @@
+{
+  "name": "@tifo/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end demo: the whole TIFO pipeline (derive → terrace → bet → kill-host → lock → ASR attest → resolve → net → settle → receipts) wired from the real packages. Runs headless — the scripted-swarm demo backup and a CI proof the stack composes.",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@tifo/terrace-base": "0.1.0",
+    "@tifo/market-kernel": "0.1.0",
+    "@tifo/sim": "0.1.0",
+    "@tifo/crowd-oracle": "0.1.0",
+    "@tifo/wdk-vault": "0.1.0",
+    "@tifo/market-catalogue": "0.1.0",
+    "@tifo/qvac-surfaces": "0.1.0"
+  }
+}
