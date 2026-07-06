@@ -1,0 +1,13 @@
+{
+  "name": "tifo-spikes",
+  "private": true,
+  "type": "module",
+  "description": "S0 day-0 spikes: autobase / wdk / qvac go-no-go",
+  "dependencies": {
+    "@tetherto/wdk-wallet-evm": "^1.0.0-beta.15",
+    "autobase": "^7.0.0",
+    "b4a": "^1.6.6",
+    "corestore": "^7.0.0",
+    "hyperbee": "^2.20.0"
+  }
+}
