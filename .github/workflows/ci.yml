@@ -15,4 +15,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - name: typecheck + lint + test
+        run: npm run check
+      - name: build all packages to JS
+        run: npm run build
+      - name: end-to-end pipeline smoke test
+        run: npm run demo

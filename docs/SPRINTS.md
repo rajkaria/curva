@@ -46,12 +46,53 @@ Gate: conservation + commutativity green — **PASSED** (29 tests, `npm run chec
 - Repo is now an npm workspace (`packages/*`); `npm run check` =
   typecheck (strict TS) + eslint + vitest. `spikes/` stays out of the workspace
   (its 5GB QVAC node_modules must not hoist).
-## S2 — terrace-base protocol — TODO
-## S3 — swarm fuzzer — TODO
-## S4 — Pear app — TODO
-## S5 — wdk-vault settlement — TODO
-## S6 — crowd oracle — TODO
-## S7 — QVAC surfaces — TODO
-## S8 — market catalogue — TODO
-## S9 — steward escrow — TODO
-## S10 — ship — TODO
+## S2 — terrace-base protocol — DONE
+Gate: 3-peer sim convergence — **PASSED** (incl. partition/heal, fence-under-gossip).
+Signed msg codec (secp256k1/keccak, recoverable sigs, canonical JSON), the
+deterministic `apply` fold over a KV view, the cutoff fence (lock + 90s belt),
+`@tifo/sim` Lamport-ordered swarm, and the `TerraceNode` Autobase/Hyperswarm runtime.
+
+## S3 — swarm fuzzer — DONE
+Gate: invariants hold under fuzz — **PASSED**. 100 randomized runs (interleavings,
+churn, partitions/heals, late bets, double-attests, whales) + targeted attacks →
+convergence, no-inflation, conservation, dedup, fence.
+
+## S4 — Pear app — DONE
+Gate: full flow works — **PASSED** via the headless e2e (`npm run demo`, also in CI).
+`apps/terrace` real Pear app wiring all packages; `@tifo/e2e` narrated end-to-end
+pipeline (derive → terrace → kill-host → lock → ASR attest → resolve → net → settle
+→ receipts). Live-device pairing = paste-a-key (BlindPairing = roadmap).
+
+## S5 — wdk-vault settlement — DONE
+Gate: e2e settlement — **PASSED** (FakeWallet path in CI; WdkWallet real-mode ready).
+Seed → identity + wallet (BIP-39/44, matches S0b vector 0x9858…), min-transfer
+netting (property-proven), settlement over a WalletAdapter, receipts.
+
+## S6 — crowd oracle — DONE
+Gate: quorum-safety tests — **PASSED**. Dual ⅔ quorum (safety proven), dispute-window
+void (batch-per-timestamp evaluation), rule-based ASR score extraction, QVAC ASR
+adapter.
+
+## S7 — QVAC surfaces — DONE
+The Gaffer (pool-state LLM commentator + deterministic fallback), terrace translate
+(routing over a Translator), hunch suggestions (stat-driven + keyword search). All
+off the money path; lazy QVAC LLM adapter.
+
+## S8 — market catalogue — DONE
+Factories: match-result, total-goals ladder (integer tenths), goal-in-window
+micro-rounds, first-scorer, correct-score. Recurring micro-round scheduler
+(nextOpenRound/liveRound) — the live-demo driver.
+
+## S9 — steward escrow — DONE
+Tier-2 2-of-3: deterministic election, per-peer on-chain deposit verification,
+threshold co-signing. FROST SwarmVault deferred to VISION (Tier 3).
+
+## S10 — ship — DONE
+JS build (dual export conditions, `npm run build`), CI = check + build + demo smoke,
+docs (ARCHITECTURE/ORACLE/TRUST/DEMO/VISION), README + prior-work declaration,
+judge-loop self-review ([SUBMISSION.md](./SUBMISSION.md)). 141 tests green.
+
+---
+**Totals:** 10 packages + app, 141 tests (property + fuzz + e2e), `npm run check`
++ `npm run build` + `npm run demo` all green. Remaining human-only items are listed
+in [SUBMISSION.md](./SUBMISSION.md).
