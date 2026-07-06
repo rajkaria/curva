@@ -125,6 +125,23 @@ export class Swarm {
     });
   }
 
+  /**
+   * Queue the entire known history for delivery to one peer — models a new
+   * writer replicating the base on join. Subject to the same partition/heal as
+   * any gossip, so a joiner that is partitioned still catches up on heal.
+   */
+  backfillTo(index: number): void {
+    const target = this.peers[index]!;
+    const seen = new Set<string>();
+    for (const peer of this.peers) {
+      for (const env of peer.all()) {
+        if (seen.has(env.id) || target.has(env.id)) continue;
+        seen.add(env.id);
+        this.inflight.push({ env, to: index });
+      }
+    }
+  }
+
   /** Append on a peer and immediately queue gossip to all others. */
   emit(peer: SimPeer, unsigned: AppendMsg): Envelope {
     const env = peer.append(unsigned);
