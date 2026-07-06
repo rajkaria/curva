@@ -35,7 +35,6 @@ export class WdkWallet implements WalletAdapter {
   private addr = "";
 
   private constructor(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private readonly account: Any,
     private readonly usdtAddress: string,
     address: string,

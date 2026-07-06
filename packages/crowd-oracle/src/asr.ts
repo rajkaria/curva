@@ -37,7 +37,6 @@ export interface QvacAsrConfig {
 /** Real on-device ASR via @qvac/sdk. Loaded lazily; runs with zero network at inference. */
 export class QvacAsr implements AsrAdapter {
   private constructor(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private readonly sdk: Any,
     private readonly modelId: string,
   ) {}

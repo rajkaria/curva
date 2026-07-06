@@ -35,7 +35,6 @@ export interface QvacLlmConfig {
 /** Real QVAC LLM. Loaded lazily; streams tokens locally and returns the full text. */
 export class QvacLlm implements LlmAdapter {
   private constructor(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private readonly sdk: Any,
     private readonly modelId: string,
   ) {}
