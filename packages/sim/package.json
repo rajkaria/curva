@@ -5,10 +5,16 @@
   "type": "module",
   "description": "In-process multi-peer swarm simulator + adversarial fuzzer. Lamport-ordered, partition-aware model of Autobase linearization; proves byte-for-byte view convergence and every money invariant under churn, partitions, and attacks.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@tifo/terrace-base": "0.1.0",
     "@tifo/market-kernel": "0.1.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

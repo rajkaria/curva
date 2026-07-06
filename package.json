@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint packages",
     "test": "vitest run",
+    "build": "tsc -b tsconfig.build.json",
     "check": "npm run typecheck && npm run lint && npm run test"
   },
   "devDependencies": {

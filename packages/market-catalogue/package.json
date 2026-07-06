@@ -5,9 +5,15 @@
   "type": "module",
   "description": "Football market factories (match result, total-goals ladder, goal-in-window micro-rounds, first scorer, correct score) + the recurring micro-round scheduler. Pure; produces MarketParams the app signs into market messages.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@tifo/terrace-base": "0.1.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

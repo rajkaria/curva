@@ -98,6 +98,17 @@ describe("resolveMarket — dispute window", () => {
     expect(r.status).toBe("voided");
   });
 
+  test("a same-instant whale vote is counted before quorum latches (no partial-tally latch)", () => {
+    // 3 equal-stake HOME voters + 1 whale AWAY, all at the same ts. Evaluated as
+    // a batch, HOME has ¾ writers but only 3/10003 stake → no quorum → open,
+    // regardless of the order the events are stored in.
+    const whaleStake = new Map([["a", 1n * USDT], ["b", 1n * USDT], ["c", 1n * USDT], ["whale", 10_000n * USDT]]);
+    const forward = [ev("a", "HOME", 2000), ev("b", "HOME", 2000), ev("c", "HOME", 2000), ev("whale", "AWAY", 2000)];
+    const reversed = [...forward].reverse();
+    expect(resolveMarket({ events: forward, stakeByWriter: whaleStake, now: 9_000_000, disputeWindowMs }).status).toBe("open");
+    expect(resolveMarket({ events: reversed, stakeByWriter: whaleStake, now: 9_000_000, disputeWindowMs }).status).toBe("open");
+  });
+
   test("strengthening the same outcome inside the window still resolves (no false void)", () => {
     const events = [
       ev("a", "HOME", 1000), ev("b", "HOME", 1000), ev("c", "HOME", 1000),

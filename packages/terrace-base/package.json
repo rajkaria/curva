@@ -5,10 +5,16 @@
   "type": "module",
   "description": "The P2P market protocol: signed message codec, deterministic apply() fold, Hyperbee view schema, cutoff fence. Pure over a View interface; real Autobase/Hyperbee live in the adapter.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

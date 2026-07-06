@@ -1,17 +1,9 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "customConditions": ["development"]
   },
-  "include": ["packages/**/*.ts", "vitest.config.ts"]
+  "include": ["packages/**/*.ts", "vitest.config.ts"],
+  "exclude": ["packages/**/dist/**"]
 }

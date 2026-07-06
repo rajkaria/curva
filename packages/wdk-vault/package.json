@@ -5,7 +5,11 @@
   "type": "module",
   "description": "Self-custodial vault: one seed → TIFO identity signing key + USDt wallet (BIP-39/44), minimal-transfer netting (Splitwise), and settlement over a WalletAdapter (real WDK, lazy-loaded; in-memory fake for tests/offline demo).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@tifo/market-kernel": "0.1.0",
@@ -13,5 +17,7 @@
     "@noble/hashes": "^1.8.0",
     "@scure/bip32": "^1.7.0",
     "@scure/bip39": "^1.6.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

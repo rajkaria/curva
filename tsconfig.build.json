@@ -1,0 +1,29 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/crowd-oracle"
+    },
+    {
+      "path": "packages/market-catalogue"
+    },
+    {
+      "path": "packages/market-kernel"
+    },
+    {
+      "path": "packages/qvac-surfaces"
+    },
+    {
+      "path": "packages/sim"
+    },
+    {
+      "path": "packages/steward-escrow"
+    },
+    {
+      "path": "packages/terrace-base"
+    },
+    {
+      "path": "packages/wdk-vault"
+    }
+  ]
+}

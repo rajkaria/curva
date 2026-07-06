@@ -5,6 +5,12 @@
   "type": "module",
   "description": "Pure parimutuel market core: pools, odds, payouts, refunds, void. Zero I/O. Ported from the Hunch production kernel (declared prior work).",
   "exports": {
-    ".": "./src/index.ts"
-  }
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

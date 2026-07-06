@@ -5,11 +5,17 @@
   "type": "module",
   "description": "Tier-2 steward escrow: deterministic 2-of-3 steward election, per-peer on-chain USDt deposit verification, and threshold co-signing of payouts. Pure protocol over a chain adapter (fake for tests, lazy real).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@tifo/terrace-base": "0.1.0",
     "@tifo/market-kernel": "0.1.0",
     "@noble/hashes": "^1.8.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

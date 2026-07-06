@@ -5,9 +5,15 @@
   "type": "module",
   "description": "The crowd oracle: pure attestation quorum math (dual ⅔ stake+writer threshold, dispute window → void) and on-device QVAC ASR → score-extraction adapters (pure extractor + lazy real ASR). AI assists, humans sign, quorum decides.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@tifo/terrace-base": "0.1.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

@@ -88,9 +88,17 @@ export interface ResolveInput {
 }
 
 /**
- * Replay the attestation log in time order to find when a quorum first formed,
- * then apply the dispute window: a counter-quorum (a different outcome reaching
- * quorum) before finalization voids the market.
+ * Replay the attestation log to find when a quorum first formed, then apply the
+ * dispute window: a counter-quorum (a different outcome reaching quorum) before
+ * finalization voids the market.
+ *
+ * Events are replayed in timestamp *batches*, not one at a time: quorum is a
+ * property of the whole tally at a point in time, so all attestations sharing a
+ * timestamp are applied together before quorum is evaluated. This is essential
+ * for the stake threshold — evaluating mid-batch could latch a quorum off a
+ * partial tally (e.g. three equal-stake voters at 100%) before a large late
+ * stake in the same instant is counted, and would make the result depend on the
+ * order same-timestamp events happen to be stored in.
  */
 export function resolveMarket(input: ResolveInput): Resolution {
   const config = input.config ?? DEFAULT_QUORUM;
@@ -101,16 +109,23 @@ export function resolveMarket(input: ResolveInput): Resolution {
   const tally = new Map<string, Attestation>();
   let quorumOut: string | null = null;
   let quorumAt = 0;
+  let i = 0;
 
-  for (const e of ordered) {
-    tally.set(e.writer, { outcomeKey: e.outcomeKey, ts: e.ts });
+  while (i < ordered.length) {
+    const ts = ordered[i]!.ts;
+    // Apply every attestation stamped at this instant before evaluating.
+    while (i < ordered.length && ordered[i]!.ts === ts) {
+      const e = ordered[i]!;
+      tally.set(e.writer, { outcomeKey: e.outcomeKey, ts: e.ts });
+      i++;
+    }
     const current = quorumOutcome(tally, input.stakeByWriter, config);
     if (current === null) continue;
 
     if (quorumOut === null) {
       quorumOut = current;
-      quorumAt = e.ts;
-    } else if (current !== quorumOut && e.ts <= quorumAt + input.disputeWindowMs) {
+      quorumAt = ts;
+    } else if (current !== quorumOut && ts <= quorumAt + input.disputeWindowMs) {
       // A different outcome reached quorum within the window → dispute → void.
       return { status: "voided", reason: `counter-quorum for ${current} disputed ${quorumOut}` };
     }

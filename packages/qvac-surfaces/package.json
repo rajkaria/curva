@@ -5,9 +5,15 @@
   "type": "module",
   "description": "On-device QVAC surfaces: the Gaffer (local LLM commentator over pool state), terrace translate (multilingual chat), and hunch suggestions (local search over bundled stats). Pure prompt/rank logic + lazy QVAC LLM adapter; all AI on-device, none in the money path.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "dependencies": {
     "@tifo/market-catalogue": "0.1.0"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }
