@@ -8,11 +8,25 @@ Goal: prove or kill each external dependency before writing product code.
 
 | Spike | Question | Verdict |
 |---|---|---|
-| S0a Autobase | 2 writers, deterministic Hyperbee view, convergence after replication? | _pending_ |
-| S0b WDK | SDK on npm? seed → address → (testnet USDt transfer path)? | _pending_ |
-| S0c QVAC | SDK publicly available? on-device ASR/LLM feasible? | _pending_ |
+| S0a Autobase | 2 writers, deterministic Hyperbee view, convergence after replication? | **GO** — both peers converge to identical `pool!fra-bra!*` totals after replication; dynamic writer add via log message works (`spikes/spike-autobase.mjs`) |
+| S0b WDK | SDK on npm? seed → address → (testnet USDt transfer path)? | **GO** — BIP-39 seed → BIP-44 `m/44'/60'/0'/0/n` derivation matches the canonical test vector exactly; offline message signing works (`spikes/spike-wdk.mjs`) |
+| S0c QVAC | SDK publicly available? on-device ASR/LLM feasible? | **GO** — Llama-3.2-1B Q4_0 downloads + runs fully local via `loadModel`/`completion` token stream (`spikes/spike-qvac.mjs`) |
 
-Exit gate: verdicts + chosen versions pinned here; fallback decisions recorded.
+Pinned versions: `autobase@7.28.1` · `corestore@7.11.0` · `hyperbee@2.27.3` ·
+`@tetherto/wdk-wallet-evm@1.0.0-beta.15` · `@qvac/sdk@0.14.1` · `@qvac/llm-llamacpp@0.31.2`
+
+Gotchas recorded for later sprints:
+
+- **QVAC dep weight:** `@qvac/sdk` hard-depends on ALL plugin packages (whisper,
+  diffusion, tts, ocr, vla…) → ~5.2GB `node_modules`. For the Pear app use
+  **`@qvac/bare-sdk`** + only `@qvac/llm-llamacpp` (same surface, no built-in
+  plugin addons, designed for Pear/Bare consumers wiring their own worker entry).
+- **Interrupted npm installs leave husk packages** (dir present, no
+  `package.json`) → Bare worker dies with `MODULE_NOT_FOUND` + `SIGABRT` at RPC
+  init. Fix = wipe `node_modules` + fresh install; verify every `@qvac/*` dir has
+  a `package.json`.
+- WDK: `account.sign(message)` (not `signMessage`); `getAccount(n)` is async.
+- Autobase `apply` must be deterministic; writer add via `addWriter` log message.
 
 ## S1 — market-kernel port — TODO
 ## S2 — terrace-base protocol — TODO

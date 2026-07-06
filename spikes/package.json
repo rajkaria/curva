@@ -4,6 +4,8 @@
   "type": "module",
   "description": "S0 day-0 spikes: autobase / wdk / qvac go-no-go",
   "dependencies": {
+    "@qvac/llm-llamacpp": "^0.31.2",
+    "@qvac/sdk": "^0.14.1",
     "@tetherto/wdk-wallet-evm": "^1.0.0-beta.15",
     "autobase": "^7.0.0",
     "b4a": "^1.6.6",
