@@ -28,7 +28,24 @@ Gotchas recorded for later sprints:
 - WDK: `account.sign(message)` (not `signMessage`); `getAccount(n)` is async.
 - Autobase `apply` must be deterministic; writer add via `addWriter` log message.
 
-## S1 — market-kernel port — TODO
+## S1 — market-kernel port — DONE
+
+Gate: conservation + commutativity green — **PASSED** (29 tests, `npm run check` green).
+
+- `packages/market-kernel` — pure parimutuel core, zero I/O, bigint USDt micros:
+  `buildPools` / `mergePools` / `impliedOdds` / `computePayouts`
+- Ported from Hunch `computeMarketPayouts`, adapted for P2P (all deviations
+  documented in the package README): N-way outcomes; **exact** conservation via
+  largest-remainder dust distribution (no treasury to keep the dust); void /
+  single-participant / no-winning-stake → full gross refund; lines sorted by
+  bettorId for byte-identical manifests across peers.
+- Property suite (fast-check): conservation (`Σ payouts + Σ fees === Σ stakes`,
+  exact), permutation + partition/merge commutativity (the CRDT claim), winner
+  no-loss at feeBps 0, refund exactness, odds sanity. TDD: full suite written
+  first, watched 29/29 fail, then implemented.
+- Repo is now an npm workspace (`packages/*`); `npm run check` =
+  typecheck (strict TS) + eslint + vitest. `spikes/` stays out of the workspace
+  (its 5GB QVAC node_modules must not hoist).
 ## S2 — terrace-base protocol — TODO
 ## S3 — swarm fuzzer — TODO
 ## S4 — Pear app — TODO
