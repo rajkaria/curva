@@ -137,7 +137,12 @@ export async function applyMessage(kv: KV, msg: Msg, seq: number): Promise<void>
         ts: msg.ts,
         ...(msg.evidence?.asrScore !== undefined ? { asrScore: msg.evidence.asrScore } : {}),
       };
-      await kv.put(`attest!${msg.marketId}!${msg.author}`, row); // latest wins
+      await kv.put(`attest!${msg.marketId}!${msg.author}`, row); // latest wins (current tally)
+      await kv.put(`alog!${msg.marketId}!${padSeq(seq)}`, {
+        writer: msg.author,
+        outcomeKey: msg.outcomeKey,
+        ts: msg.ts,
+      }); // append-only history (dispute-window replay)
       return;
     }
     case "receipt": {
@@ -200,6 +205,18 @@ export async function readAttestations(kv: KV, marketId: string): Promise<Map<st
   const p = prefix(`attest!${marketId}!`);
   for await (const { key, value } of kv.list(p)) {
     out.set(key.slice(`attest!${marketId}!`.length), value as AttestRow);
+  }
+  return out;
+}
+
+/** The append-only attestation history (each re-attest is a distinct event). */
+export async function readAttestationLog(
+  kv: KV,
+  marketId: string,
+): Promise<Array<{ writer: string; outcomeKey: string; ts: number }>> {
+  const out: Array<{ writer: string; outcomeKey: string; ts: number }> = [];
+  for await (const { value } of kv.list(prefix(`alog!${marketId}!`))) {
+    out.push(value as { writer: string; outcomeKey: string; ts: number });
   }
   return out;
 }
