@@ -175,10 +175,57 @@ test — **PASSED** (217 tests). Closes audit findings U1–U7 + U9. Plan:
   Every new peer-string surface goes through the S11 escaping discipline
   (hostile-input jsdom tests added for each).
 
-Roadmap for S14–S16 (feature wiring, pairing + browser demo, trust hardening):
+## S14 — feature wiring — DONE
+Gate: every catalogue market kind openable from the UI; leaderboard read from
+the view — **PASSED** (237 tests). Closes audit findings F1–F8. Plan:
+[plans/s14-features.md](./plans/s14-features.md). No protocol change — this
+sprint only signs existing message shapes from new UI entry points and reads
+existing view rows into new view-models.
+- **Market picker (F1):** `marketPickerVm(fixture)` returns every catalogue kind
+  as a tappable option carrying the exact factory `{kind, params}` — Result,
+  both total-goals lines (O/U 2.5 & 3.5), first scorer over the bundled danger
+  men, and the 16-outcome correct-score grid. Cutoff comes from the fixture
+  kickoff, not a hardcoded +90min. A VM test pins the specs to the factories
+  (no drift); with the micro-round planner below, all five `MarketKind`s are
+  openable.
+- **Micro-rounds (F2):** `planMicroRounds(fixtureId, rounds, now)` is the pure
+  "what should exist / be locked at time t" planner over
+  `scheduleMicroRounds` — a market appears one round-length before its cutoff
+  and locks when its window opens. The opener-side ticker diffs the plan against
+  the view and emits only the missing `market`/`lock` messages; deterministic
+  ids (`m-<fixtureId>-r<round>`) + first-market-wins make re-emits and two
+  openers racing idempotent. Open rounds float to the top of the market list
+  (`terraceVm` grouping) so the terrace never has dead air.
+- **Tappable suggestions (F3):** each `suggestMarkets` hunch renders as a button
+  that opens that exact market spec (top 2), not inert reason text.
+- **Leaderboard (F4):** `leaderboardVm` folds every resolved market's realized
+  P&L per bettor straight off the canonical `computePayouts` (same engine settle
+  runs — no parallel payout logic) and `resolveMarket` (same rule the market
+  screen uses), sorted by net with registered names. Tested against a
+  three-market script; the board conserves to zero at feeBps 0.
+- **Escrow panel (F5):** read-only `escrowVm` surfaces the two trust tiers —
+  Tier 1 (Mates) active, Tier 2 the deterministic `electStewards` 2-of-3
+  election (opener + top stakers) over the terrace's stakers. No money-flow
+  change; links TRUST.md.
+- **Recent terraces (F6):** `recentTerracesVm` + a `tifo.terraces` localStorage
+  list give the home screen one-tap rejoin (dedup by key, most-recent-first);
+  the durable storage dirs from S11 make a host rejoin land on the same terrace.
+- **Gaffer LLM (F7):** a "load model" button lazily attempts `QvacLlm.load`,
+  with visible loading/failure states, and falls back to `fallbackQuip` — the
+  🎩 (template) vs 🎩⚡ (live model) glyph is derived from which path actually
+  spoke, so it never lies. `gafferPoolVm` gives the app one read both paths take.
+- **Fixture bundle (F8):** the full 16-fixture knockout bracket (R16 → QF → SF →
+  3rd place → Final) with staggered kickoffs, three danger men per team, and a
+  `STATS_BUNDLE` row for every team so a hunch fires on any tie. The original
+  `fra-bra`/`arg-eng` ids and the demo transcript are unchanged.
+- **Escaping discipline:** the two new peer-string surfaces (leaderboard rows,
+  steward names) go through `leaderboardHtml`/`escrowHtml` with hostile-input
+  jsdom tests; all new buttons are single-flight via `busy()`.
+
+Roadmap for S15–S16 (pairing + browser demo, trust hardening):
 [IMPROVEMENTS.md](./IMPROVEMENTS.md).
 
 ---
-**Totals:** 11 packages + app, 217 tests (property + fuzz + e2e + jsdom),
+**Totals:** 11 packages + app, 237 tests (property + fuzz + e2e + jsdom),
 `npm run check` + `npm run build` + `npm run demo` all green. Remaining
 human-only items are listed in [SUBMISSION.md](./SUBMISSION.md).

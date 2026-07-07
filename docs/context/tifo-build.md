@@ -10,7 +10,7 @@ globs:
   - "tsconfig*.json"
   - "vitest.config.ts"
   - "eslint.config.js"
-updated: 2026-07-07  # S13 done (UX quick wins); S14 next
+updated: 2026-07-07  # S14 done (feature wiring); S15 next
 ---
 
 # TIFO — build context
@@ -22,24 +22,32 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Current state — what's working, deployed, broken
 
-- **S0–S13 DONE and merged to local `main`** (HEAD `961dadf`; S11 `b9e1f8e`,
-  S12 `806cfac`, S13 `806abd5`). **`origin/main` is 6 commits behind** — the
-  remaining step is `git push origin main` (outward-facing; a submission task).
-  Roadmap S14–S16 planned in [IMPROVEMENTS.md](../IMPROVEMENTS.md) +
-  [docs/plans/](../plans/).
-- **217 tests green** (property + fuzz + e2e + jsdom). Gates all pass:
-  `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
+- **S0–S14 DONE** (S11 `b9e1f8e`, S12 `806cfac`, S13 `806abd5`; S14 on branch
+  `claude/gallant-williams-e5fe8c`, not yet merged to local `main`). Local
+  `main` was already ahead of `origin/main` (unpushed) before S14 — `git push
+  origin main` remains an outward-facing submission task. Roadmap S15–S16
+  planned in [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/).
+- **237 tests green** (property + fuzz + e2e + jsdom; +20 in S14). Gates all
+  pass: `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline → converged/resolved/conserved/square).
   CI runs all three + e2e smoke on **Node 22**. Note: `lint` covers `apps` too.
 - **Node floor:** the jsdom test path uses `require(esm)`, so gates need Node
   ≥20.19 / ≥22.12 / ≥24 — pinned in `.nvmrc` (22) and `engines`. An EOL Node 21
-  will make `npm run check` fail to collect the jsdom file (not a code bug).
+  will make `npm run check` fail to collect the jsdom file (not a code bug). The
+  default `node` on this machine is EOL 21.7.2 — run gates via a Homebrew
+  `node@20`/`node@25` on PATH.
 - npm workspaces, strict TS. Packages under `packages/` (**10**) + `apps/terrace`
-  (Pear app) — S12 added `@tifo/terrace-ui`, the app's tested render layer.
+  (Pear app). `@tifo/terrace-ui` (S12) is the app's tested render layer; S14 gave
+  it deps on `@tifo/market-catalogue` + `@tifo/steward-escrow` (picker/planner,
+  escrow election).
 - **Working:** every pure/protocol layer, the swarm sim/fuzzer, the end-to-end
   demo, the render layer (VMs + formatters + jsdom escaping), the S13 UX surfaces
   (demo banner, peer count, wallet/position/preview/P&L, names, live countdowns,
-  chat+translate, quorum tally), all docs, dual-condition JS build.
+  chat+translate, quorum tally), the S14 feature surfaces (market-type picker for
+  every catalogue kind, opener-side micro-round scheduler, tappable hunches,
+  realized-P&L leaderboard, trust-tier/steward panel, recent-terraces rejoin,
+  lazy Gaffer-LLM toggle, full 16-fixture bracket), all docs, dual-condition JS
+  build.
 - **Unverified (disclosed):** `apps/terrace/app.js` on-device behavior — needs the
   Pear runtime, not executable in CI. The render *logic* is extracted into
   `@tifo/terrace-ui` and fully tested; only the DOM-shell wiring in `app.js`

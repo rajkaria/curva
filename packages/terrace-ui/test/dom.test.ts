@@ -12,7 +12,9 @@ import {
   cdSpanHtml,
   chatLineHtml,
   esc,
+  escrowHtml,
   headerWidgetsHtml,
+  leaderboardHtml,
   marketHeadHtml,
   outcomeClass,
   outcomeRowHtml,
@@ -22,7 +24,17 @@ import {
   renderCard,
   tallyHtml,
 } from "../src/html.js";
-import type { ChatLineVm, HeaderVm, MarketVm, OutcomeVm, PnlVm, PositionVm, TallyVm } from "../src/vm.js";
+import type {
+  ChatLineVm,
+  EscrowVm,
+  HeaderVm,
+  LeaderboardVm,
+  MarketVm,
+  OutcomeVm,
+  PnlVm,
+  PositionVm,
+  TallyVm,
+} from "../src/vm.js";
 
 const HOSTILE = '<img src=x onerror=alert(1)>"><script>boom()</script>';
 
@@ -187,5 +199,48 @@ describe("S13 surfaces stay inert under hostile peer strings", () => {
     const host = mount(tallyHtml(vm));
     expect(host.querySelector("img, script")).toBeNull();
     expect(host.textContent).toContain(HOSTILE);
+  });
+});
+
+describe("S14 surfaces stay inert under hostile peer strings", () => {
+  test("leaderboardHtml — a hostile bettor name never becomes markup; class swings on the sign", () => {
+    const vm: LeaderboardVm = {
+      resolvedCount: 2,
+      hasResolved: true,
+      rows: [
+        { id: "02ab", name: HOSTILE, staked: 10_000_000n, payout: 24_000_000n, net: 14_000_000n, netLabel: "+14.00", won: true, markets: 2 },
+        { id: "02cd", name: "cai", staked: 14_000_000n, payout: 0n, net: -14_000_000n, netLabel: "-14.00", won: false, markets: 2 },
+      ],
+    };
+    const host = mount(leaderboardHtml(vm));
+    expect(host.querySelector("img, script")).toBeNull();
+    expect(host.textContent).toContain(HOSTILE);
+    expect(host.querySelector(".square")).not.toBeNull(); // winner row is green
+    expect(host.querySelector(".warn")).not.toBeNull(); // loser row is amber
+  });
+
+  test("leaderboardHtml — empty board reads as a prompt, not a blank", () => {
+    const host = mount(leaderboardHtml({ rows: [], resolvedCount: 0, hasResolved: false }));
+    expect(host.textContent).toContain("No settled markets yet");
+  });
+
+  test("escrowHtml — hostile steward names stay inert; standby when unavailable", () => {
+    const active: EscrowVm = {
+      tier1Active: true,
+      participantCount: 3,
+      tier2Available: true,
+      threshold: 2,
+      stewards: [{ id: "02ab", name: HOSTILE }, { id: "02cd", name: "bo" }, { id: "02ef", name: "cai" }],
+      note: "Tier 2 ready — 2-of-3 steward escrow (opener + top stakers).",
+    };
+    const host = mount(escrowHtml(active));
+    expect(host.querySelector("img, script")).toBeNull();
+    expect(host.textContent).toContain(HOSTILE);
+    expect(host.querySelectorAll(".pill.ok")).toHaveLength(2); // both tiers active
+
+    const standby: EscrowVm = { tier1Active: true, participantCount: 1, tier2Available: false, threshold: 0, stewards: [], note: "Tier 2 needs ≥3 stakers in the terrace (have 1)." };
+    const host2 = mount(escrowHtml(standby));
+    expect(host2.textContent).toContain("standby");
+    expect(host2.querySelectorAll(".pill.ok")).toHaveLength(1); // only Tier 1
   });
 });

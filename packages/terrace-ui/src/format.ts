@@ -43,3 +43,17 @@ export function countdown(ms: number): string {
 export function shortKey(hex: string, chars = 4): string {
   return hex.length > 2 + chars ? hex.slice(2, 2 + chars) : hex;
 }
+
+/**
+ * A coarse "how long ago" label for the recent-terraces list. Past only —
+ * a negative or sub-minute gap reads as "just now". Never a peer string.
+ */
+export function agoLabel(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}

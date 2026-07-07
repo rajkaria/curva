@@ -27,20 +27,29 @@ import {
   deriveVault, randomVault, isValidMnemonic,
   computeDeltas, minTransfers, settlementManifest, settleMyDebts, FakeWallet,
 } from "@tifo/wdk-vault";
-import { matchResult } from "@tifo/market-catalogue";
+import { scheduleMicroRounds } from "@tifo/market-catalogue";
 import { prefillAttestation, FakeAsr } from "@tifo/crowd-oracle";
 import { computePayouts } from "@tifo/market-kernel";
-import { FakeTranslator, suggestMarkets } from "@tifo/qvac-surfaces";
+import { FakeTranslator, suggestMarkets, buildGafferContext, fallbackQuip, QvacLlm } from "@tifo/qvac-surfaces";
 import {
-  terraceVm, marketVm, chatVm, gafferVm, settlementVm,
+  terraceVm, marketVm, chatVm, gafferPoolVm, settlementVm,
   positionVm, previewPayout, pnlVm, tallyVm, headerVm,
-  LANGS, countdown, usdt,
+  marketPickerVm, planMicroRounds, leaderboardVm, escrowVm, recentTerracesVm,
+  LANGS, GAFFER_IDLE, countdown, usdt,
   esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml, cdSpanHtml,
   demoBannerHtml, headerWidgetsHtml, positionHtml, previewLineHtml, pnlHtml, tallyHtml,
+  leaderboardHtml, escrowHtml,
 } from "@tifo/terrace-ui";
 import { FIXTURES, STATS_BUNDLE, DEMO_TRANSCRIPT } from "../../fixtures/wc2026.js";
 
 const DISPUTE_WINDOW_MS = 10 * 60_000;
+// Micro-rounds: a fresh 10-minute goal-in-window pool every 10 minutes, so the
+// terrace never runs out of something live to trade (the live-demo killer).
+const MICRO_ROUND_MS = 10 * 60_000;
+const MICRO_ROUND_COUNT = 9; // a 90-minute match
+// Where the QVAC Gaffer model would load from in real mode — the lazy import of
+// @qvac/sdk fails cleanly in demo mode, so the Gaffer stays on templates.
+const GAFFER_MODEL_SRC = "./models/llama-3.2-1b-q4_0.gguf";
 // Stable per-terrace storage: the local writer core must survive restarts, or
 // the host has to re-authorize this peer after every launch.
 const storageBase = globalThis.Pear?.config?.storage ?? "./store";
@@ -49,8 +58,12 @@ const app = document.getElementById("app");
 const headWidgets = document.getElementById("head-widgets");
 const banner = document.getElementById("banner");
 
-// Nation flags for the bundled fixtures — our own constants (never peer data).
-const TEAM_EMOJI = { France: "🇫🇷", Brazil: "🇧🇷", Argentina: "🇦🇷", England: "🇬🇧" };
+// Nation flags for the bundled bracket — our own constants (never peer data).
+const TEAM_EMOJI = {
+  France: "🇫🇷", Brazil: "🇧🇷", Argentina: "🇦🇷", England: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", Spain: "🇪🇸", Germany: "🇩🇪",
+  Portugal: "🇵🇹", Netherlands: "🇳🇱", Belgium: "🇧🇪", Croatia: "🇭🇷", Italy: "🇮🇹", Uruguay: "🇺🇾",
+  USA: "🇺🇸", Mexico: "🇲🇽", Japan: "🇯🇵", Morocco: "🇲🇦",
+};
 const teamEmoji = (name) => TEAM_EMOJI[name] ?? "⚽";
 
 // ── Vault (persisted seed) ───────────────────────────────────────────────────
@@ -70,6 +83,11 @@ let role = "none"; // none | opener | joiner | joiner-active
 let screen = "home";
 let selectedMarket = null;
 let toastMsg = "";
+// Opener-side micro-round scheduler: { fixtureId, matchStart, rounds } or null.
+let liveRounds = null;
+// Gaffer model: lazy QVAC LLM + its load state (off | loading | ready | failed).
+let gafferLlm = null;
+let gafferState = "off";
 const wallet = new FakeWallet(vault.wallet.address, 1000n * 1_000_000n); // demo-funded
 // Demo mode is *derived*, not asserted: the banner shows iff the fakes are live.
 const demoMode = wallet instanceof FakeWallet;
@@ -155,6 +173,28 @@ function setLang(l) {
   markDirty(); // re-render translates every line into the new language
 }
 
+// ── Recent terraces (persisted, never replicated) ─────────────────────────────
+function loadRecents() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("tifo.terraces") || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+/** Remember (or bump) a terrace so the home screen can offer one-tap rejoin. */
+function rememberTerrace(key, name, entryRole) {
+  if (!key) return;
+  const list = loadRecents().filter((e) => e && e.key !== key);
+  list.push({ key, name, role: entryRole, lastSeen: Date.now() });
+  localStorage.setItem("tifo.terraces", JSON.stringify(list.slice(-20)));
+}
+async function rejoinTerrace(entry) {
+  // A host has a single durable store; a joiner reconnects by invite key.
+  if (entry.role === "opener") return openTerrace();
+  return joinTerrace(entry.key);
+}
+
 // ── Terrace lifecycle ─────────────────────────────────────────────────────────
 const HEX64 = /^[0-9a-f]{64}$/i;
 
@@ -163,6 +203,7 @@ async function openTerrace() {
   role = "opener";
   await node.joinSwarm();
   await emitHello();
+  rememberTerrace(node.key(), "Your terrace", "opener");
   screen = "terrace";
   startPolling();
   markDirty();
@@ -173,6 +214,7 @@ async function joinTerrace(inviteKey) {
   node = await TerraceNode.open({ storagePath: storageBase + "/terrace-" + key.slice(0, 16), inviteKey: key });
   role = "joiner";
   await node.joinSwarm();
+  rememberTerrace(key, "Terrace " + key.slice(0, 8), "joiner");
   screen = "terrace";
   startPolling();
   markDirty();
@@ -267,6 +309,8 @@ function startPolling() {
     tickCountdowns();
     await updateHeader();
     await node.update();
+    // Opener's micro-round scheduler: open/lock the rounds due at this instant.
+    await tickMicroRounds();
     if (role === "joiner" && node.writable()) {
       // Became writable → announce identity once.
       role = "joiner-active";
@@ -281,10 +325,85 @@ function startPolling() {
 globalThis.Pear?.teardown?.(async () => { clearInterval(polling); await node?.close(); });
 
 // ── Markets ────────────────────────────────────────────────────────────────────
-async function openMarketFromFixture(fx) {
-  const spec = matchResult(fx.home, fx.away);
-  const ok = await emit({ t: "market", marketId: marketId(), kind: spec.kind, params: spec.params, cutoffAt: Date.now() + 90 * 60_000, feeBps: 0 });
-  if (ok) toast("Market opened");
+/** Kickoff → cutoff (ms). Falls back to +90min if a fixture has no valid time. */
+function fixtureCutoff(fx) {
+  const k = Date.parse(fx.kickoff);
+  return Number.isFinite(k) ? k : Date.now() + 90 * 60_000;
+}
+/** Open any catalogue market for a fixture — the picker and the hunch suggestions
+ *  both route through here, so cutoff (from kickoff) and escaping stay in one place. */
+async function openMarketFromSpec(fx, spec) {
+  const ok = await emit({
+    t: "market", marketId: marketId(), kind: spec.kind, params: spec.params, cutoffAt: fixtureCutoff(fx), feeBps: 0,
+  });
+  if (ok) toast(`Opened: ${spec.params.title}`);
+}
+
+// ── Micro-rounds (opener-side scheduler) ─────────────────────────────────────
+function startLiveRounds(fx) {
+  // "Kickoff" is one round out, so the first window is immediately bettable
+  // rather than opening already-closed.
+  const matchStart = Date.now() + MICRO_ROUND_MS;
+  liveRounds = {
+    fixtureId: fx.id,
+    matchStart,
+    rounds: scheduleMicroRounds(matchStart, { roundMs: MICRO_ROUND_MS, count: MICRO_ROUND_COUNT }),
+  };
+  toast(`Live rounds on for ${fx.home} vs ${fx.away}`);
+  markDirty();
+}
+function stopLiveRounds() {
+  liveRounds = null;
+  toast("Live rounds off");
+  markDirty();
+}
+/**
+ * Each tick, reconcile the view against what the plan says should exist/lock at
+ * `now` — emit only the missing `market`/`lock` messages. Deterministic ids +
+ * first-market-wins make re-emits (and two openers racing) idempotent.
+ */
+async function tickMicroRounds() {
+  if (!liveRounds || !node?.writable()) return;
+  const plan = planMicroRounds(liveRounds.fixtureId, liveRounds.rounds, Date.now());
+  const list = await terraceVm(node.view(), uiState());
+  const seen = new Map(list.markets.map((m) => [m.marketId, m]));
+  for (const item of plan) {
+    const existing = seen.get(item.marketId);
+    if (!existing) {
+      await emit({ t: "market", marketId: item.marketId, kind: item.spec.kind, params: item.spec.params, cutoffAt: item.cutoffAt, feeBps: 0 });
+    }
+    if (item.shouldLock && !(existing && existing.locked)) {
+      await emit({ t: "lock", marketId: item.marketId });
+    }
+  }
+}
+
+// ── Gaffer LLM (lazy, honest about which path spoke) ─────────────────────────
+async function loadGaffer() {
+  gafferState = "loading";
+  markDirty();
+  try {
+    gafferLlm = await QvacLlm.load({ modelSrc: GAFFER_MODEL_SRC, onProgress: () => {} });
+    gafferState = "ready";
+    toast("Gaffer model loaded ⚡");
+  } catch {
+    gafferLlm = null;
+    gafferState = "failed";
+    toast("No local model — Gaffer stays on templates");
+  }
+  markDirty();
+}
+/** The quip + which path produced it, so the 🎩/🎩⚡ glyph never lies. */
+async function gafferSpeak(kv) {
+  const pool = await gafferPoolVm(kv, selectedMarket);
+  if (!pool) return { text: GAFFER_IDLE, live: false };
+  if (gafferLlm) {
+    try {
+      const out = (await gafferLlm.complete(buildGafferContext(pool))).trim();
+      if (out) return { text: out, live: true };
+    } catch { /* fall through to the template */ }
+  }
+  return { text: fallbackQuip(pool), live: false };
 }
 async function placeBet(vm, outcomeKey, usdtAmount) {
   if (!Number.isFinite(usdtAmount) || usdtAmount <= 0 || usdtAmount > 1e9) return toast("Enter a stake above 0");
@@ -384,6 +503,18 @@ function renderHome(stage) {
   busy(card.querySelector("#open"), openTerrace);
   busy(card.querySelector("#join"), () => joinTerrace(card.querySelector("#invite").value));
   stage.appendChild(card);
+
+  // Recent terraces — one-tap rejoin. Durable storage dirs (S11) make this real.
+  const recents = recentTerracesVm(loadRecents(), Date.now());
+  if (recents.length) {
+    const rc = h(`<div class="card stack"><h2>Recent terraces</h2></div>`);
+    for (const r of recents) {
+      const btn = h(`<button class="ghost" style="text-align:left">${esc(r.name)} <span class="muted">· ${esc(r.role)} · ${esc(r.seenLabel)}</span></button>`);
+      busy(btn, () => rejoinTerrace(r));
+      rc.appendChild(btn);
+    }
+    stage.appendChild(rc);
+  }
 }
 
 async function renderTerrace(stage) {
@@ -403,27 +534,58 @@ async function renderTerrace(stage) {
   busy(invite.querySelector("#auth"), () => authorizeWriter(invite.querySelector("#authk").value));
   stage.appendChild(invite);
 
-  // New market from a bundled fixture + hunch suggestions.
+  // Open a market — the full catalogue per fixture (collapsed so the whole
+  // bracket fits), each option a tappable button carrying the exact factory spec.
   const opener = h(`<div class="card stack"><h2>Open a market</h2></div>`);
   for (const fx of FIXTURES) {
-    const b = h(`<button class="ghost">${teamEmoji(fx.home)} ${esc(fx.home)} vs ${teamEmoji(fx.away)} ${esc(fx.away)}</button>`);
-    busy(b, () => openMarketFromFixture(fx));
-    opener.appendChild(b);
-    const s = suggestMarkets(fx.home, fx.away, STATS_BUNDLE).slice(1, 2)[0];
-    if (s) opener.appendChild(h(`<div class="muted">↳ ${esc(s.reason)}</div>`));
+    const live = liveRounds && liveRounds.fixtureId === fx.id;
+    const det = h(`<details class="stack"><summary>${teamEmoji(fx.home)} ${esc(fx.home)} vs ${teamEmoji(fx.away)} ${esc(fx.away)} <span class="pill">${esc(fx.round ?? "match")}</span>${live ? ' <span class="pill ok">LIVE</span>' : ""}</summary></details>`);
+
+    const picks = h(`<div class="row wrap" style="margin-top:8px"></div>`);
+    for (const opt of marketPickerVm(fx)) {
+      const b = h(`<button class="ghost">${esc(opt.label)}</button>`);
+      busy(b, () => openMarketFromSpec(fx, opt.spec));
+      picks.appendChild(b);
+    }
+    det.appendChild(picks);
+
+    // Tappable hunch suggestions (F3): the top two, each opening that exact spec.
+    for (const s of suggestMarkets(fx.home, fx.away, STATS_BUNDLE).slice(1, 3)) {
+      const b = h(`<button class="ghost" style="text-align:left">↳ ${esc(s.reason)}</button>`);
+      busy(b, () => openMarketFromSpec(fx, s.spec));
+      det.appendChild(b);
+    }
+
+    // Opener-only micro-round toggle (F2).
+    if (role === "opener") {
+      const lr = h(`<button class="ghost">${live ? "■ Stop live rounds" : "▶ Live rounds (10-min goal markets)"}</button>`);
+      busy(lr, () => (live ? stopLiveRounds() : startLiveRounds(fx)));
+      det.appendChild(lr);
+    }
+    opener.appendChild(det);
   }
   stage.appendChild(opener);
 
-  // Live markets.
+  // Live markets — open micro-rounds float to the top (grouping in terraceVm).
   const list = h(`<div class="card stack"><h2>Markets (${t.markets.length})</h2></div>`);
   for (const item of t.markets) {
     const closes = item.closesAt !== null ? cdSpanHtml(item.closesAt, "closes in ", item.closesLabel) : esc(item.closesLabel);
-    const btn = h(`<button class="ghost" style="text-align:left">${esc(item.title)} <span class="muted">· ${closes}</span></button>`);
+    const tag = item.liveRound ? '<span class="pill ok">LIVE</span> ' : "";
+    const btn = h(`<button class="ghost" style="text-align:left">${tag}${esc(item.title)} <span class="muted">· ${closes}</span></button>`);
     btn.onclick = () => { selectedMarket = item.marketId; screen = "market"; markDirty(); };
     list.appendChild(btn);
   }
   if (!t.markets.length) list.appendChild(h(`<p class="muted">No markets yet.</p>`));
   stage.appendChild(list);
+
+  // Leaderboard (F4) — realized P&L across every settled market.
+  stage.appendChild(h(`<div class="card stack"><h2>Leaderboard</h2>${leaderboardHtml(await leaderboardVm(kv, state))}</div>`));
+
+  // Trust tiers (F5) — Mates active, steward escrow on standby. See TRUST.md.
+  const trust = h(`<div class="card stack"><h2>Trust</h2></div>`);
+  trust.appendChild(h(escrowHtml(await escrowVm(kv, state))));
+  trust.appendChild(h(`<div class="muted">Two tiers, no company custodian — how they work: TRUST.md.</div>`));
+  stage.appendChild(trust);
 
   await renderChatCard(stage, kv, state);
 }
@@ -510,14 +672,23 @@ async function renderMarket(stage) {
 }
 
 async function renderChatCard(stage, kv, state) {
-  const quip = await gafferVm(kv, selectedMarket);
+  const { text: quip, live } = await gafferSpeak(kv);
   const lines = await chatVm(kv, state, translator);
   const langOpts = LANGS.map((l) => `<option value="${esc(l.code)}"${l.code === lang ? " selected" : ""}>${esc(l.label)}</option>`).join("");
+  // Gaffer control: honest about which path spoke (🎩 template vs 🎩⚡ live model).
+  const gafferCtl =
+    gafferState === "loading"
+      ? '<span class="muted">loading model…</span>'
+      : gafferState === "ready"
+        ? '<span class="pill ok">⚡ model on</span>'
+        : `<button class="ghost" id="loadgaffer" style="flex:0 0 auto;padding:4px 10px;font-size:12px">${gafferState === "failed" ? "🎩 retry model" : "🎩 load model"}</button>`;
   const card = h(`<div class="card stack"><h2>Terrace</h2>
-    <div class="gaffer">🎩 ${esc(quip)}</div>
+    <div class="row"><div class="gaffer" style="flex:1">${live ? "🎩⚡" : "🎩"} ${esc(quip)}</div>${gafferCtl}</div>
     <div class="chat" id="chat"></div>
     <div class="row"><input id="msg" placeholder="say something…" /><select id="lang" style="flex:0 0 auto;width:auto">${langOpts}</select><button id="send">Send</button></div>
   </div>`);
+  const loadBtn = card.querySelector("#loadgaffer");
+  if (loadBtn) busy(loadBtn, loadGaffer);
   const chat = card.querySelector("#chat");
   for (const line of lines) chat.appendChild(h(chatLineHtml(line)));
   chat.addEventListener("scroll", () => {

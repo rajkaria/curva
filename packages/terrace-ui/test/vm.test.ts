@@ -11,16 +11,32 @@ import { foldMessages, randomIdentity, signMessage, type Identity, type Msg } fr
 import { FakeTranslator } from "@tifo/qvac-surfaces";
 import { computePayouts, type Bet } from "@tifo/market-kernel";
 import {
+  correctScore,
+  firstScorer,
+  goalInWindow,
+  matchResult,
+  scheduleMicroRounds,
+  totalGoalsLadder,
+} from "@tifo/market-catalogue";
+import {
   DEMO_BANNER,
+  GAFFER_IDLE,
   LANGS,
   chatVm,
+  escrowVm,
+  gafferPoolVm,
   gafferVm,
   headerVm,
+  leaderboardVm,
+  marketPickerVm,
   marketVm,
+  microRoundMarketId,
   peerVm,
+  planMicroRounds,
   pnlVm,
   positionVm,
   previewPayout,
+  recentTerracesVm,
   settlementVm,
   stakeByBettor,
   tallyVm,
@@ -84,6 +100,58 @@ function receipt(id: Identity, marketId: string, manifestLine: number, ts: numbe
 function chat(id: Identity, text: string, lang: string, ts: number): Msg {
   return signMessage({ t: "chat", v: 1, author: id.idKey, text, lang, ts }, id.privKey);
 }
+function goalMarket(
+  id: Identity,
+  marketId: string,
+  round: number,
+  windowStart: number,
+  windowEnd: number,
+  cutoffAt: number,
+  ts: number,
+): Msg {
+  return signMessage(
+    {
+      t: "market",
+      v: 1,
+      author: id.idKey,
+      marketId,
+      kind: "goal-in-window",
+      params: { title: `Goal in round ${round + 1}?`, outcomes: ["YES", "NO"], meta: { round, windowStart, windowEnd } },
+      cutoffAt,
+      feeBps: 0,
+      ts,
+    },
+    id.privKey,
+  );
+}
+
+/** Three markets, each resolved to HOME by a 3-writer quorum — the leaderboard fixture. */
+const LB: readonly Msg[] = [
+  hello(ana, "ana"),
+  hello(bo, "bo"),
+  hello(cai, "cai"),
+  market(ana, "m1", "M1", T0 + 1),
+  market(ana, "m2", "M2", T0 + 2),
+  market(ana, "m3", "M3", T0 + 3),
+  bet(ana, "m1", "HOME", 10n, "a1", T0 + 10),
+  bet(bo, "m1", "AWAY", 10n, "b1", T0 + 11),
+  bet(bo, "m2", "HOME", 10n, "b2", T0 + 12),
+  bet(cai, "m2", "AWAY", 10n, "c2", T0 + 13),
+  bet(ana, "m3", "HOME", 6n, "a3", T0 + 14),
+  bet(cai, "m3", "AWAY", 4n, "c3", T0 + 15),
+  lock(ana, "m1", T0 + 100),
+  lock(ana, "m2", T0 + 100),
+  lock(ana, "m3", T0 + 100),
+  attest(ana, "m1", "HOME", T0 + 200),
+  attest(bo, "m1", "HOME", T0 + 200),
+  attest(cai, "m1", "HOME", T0 + 200),
+  attest(ana, "m2", "HOME", T0 + 200),
+  attest(bo, "m2", "HOME", T0 + 200),
+  attest(cai, "m2", "HOME", T0 + 200),
+  attest(ana, "m3", "HOME", T0 + 200),
+  attest(bo, "m3", "HOME", T0 + 200),
+  attest(cai, "m3", "HOME", T0 + 200),
+];
 
 const BASE: readonly Msg[] = [
   hello(ana, "ana"),
@@ -217,7 +285,16 @@ describe("terraceVm — market list", () => {
     expect(vm.role).toBe("opener");
     expect(vm.invite).toBe("invite-hex");
     expect(vm.markets).toEqual([
-      { marketId: "m1", title: "FRA v BRA", locked: false, closesLabel: "closes in 1:30:00", closesAt: CUTOFF },
+      {
+        marketId: "m1",
+        title: "FRA v BRA",
+        kind: "match-result",
+        round: null,
+        liveRound: false,
+        locked: false,
+        closesLabel: "closes in 1:30:00",
+        closesAt: CUTOFF,
+      },
     ]);
   });
 
@@ -425,5 +502,184 @@ describe("tallyVm — the quorum, made visible", () => {
     expect(t.outcomes).toEqual([]);
     expect(t.voters).toEqual([]);
     expect(t.quorumOutcome).toBeNull();
+  });
+});
+
+// ── S14 surfaces ──────────────────────────────────────────────────────────────
+
+describe("marketPickerVm — the whole catalogue, openable (F1)", () => {
+  const fx = { id: "fra-bra", home: "France", away: "Brazil", homeSquad: ["Mbappe"], awaySquad: ["Vinicius"] };
+
+  test("emits the exact factory specs, in order, no drift", () => {
+    const specs = marketPickerVm(fx).map((o) => o.spec);
+    expect(specs).toEqual([
+      matchResult("France", "Brazil"),
+      ...totalGoalsLadder([2.5, 3.5]),
+      firstScorer(["Mbappe", "Vinicius"]),
+      correctScore(3),
+    ]);
+  });
+
+  test("covers every non-goal-in-window MarketKind; correct-score is a 16-outcome grid", () => {
+    const opts = marketPickerVm(fx);
+    expect(new Set(opts.map((o) => o.spec.kind))).toEqual(
+      new Set(["match-result", "total-goals", "first-scorer", "correct-score"]),
+    );
+    expect(opts.find((o) => o.spec.kind === "correct-score")!.spec.params.outcomes).toHaveLength(16);
+    expect(opts.map((o) => o.label)).toEqual([
+      "Result",
+      "Total goals O/U 2.5",
+      "Total goals O/U 3.5",
+      "First scorer",
+      "Correct score",
+    ]);
+  });
+
+  test("no squad → no first-scorer option", () => {
+    const opts = marketPickerVm({ id: "x", home: "A", away: "B" });
+    expect(opts.some((o) => o.spec.kind === "first-scorer")).toBe(false);
+    expect(opts.some((o) => o.spec.kind === "correct-score")).toBe(true);
+  });
+});
+
+describe("planMicroRounds — deterministic open/lock planner (F2)", () => {
+  const ROUND = 10 * 60_000;
+  const rounds = scheduleMicroRounds(0, { roundMs: ROUND, count: 9 });
+
+  test("at kickoff: round 0 exists+locked, round 1 open for betting", () => {
+    const plan = planMicroRounds("fx", rounds, 0);
+    expect(plan.map((r) => r.round)).toEqual([0, 1]);
+    expect(plan.find((r) => r.round === 0)!.shouldLock).toBe(true);
+    expect(plan.find((r) => r.round === 1)).toMatchObject({ shouldLock: false, marketId: "m-fx-r1" });
+    expect(plan[0]!.spec.kind).toBe("goal-in-window");
+  });
+
+  test("25 minutes in: rounds 0–3 exist, 0–2 should lock, round 3 open", () => {
+    const plan = planMicroRounds("fx", rounds, 25 * 60_000);
+    expect(plan.map((r) => r.round)).toEqual([0, 1, 2, 3]);
+    expect(plan.filter((r) => r.shouldLock).map((r) => r.round)).toEqual([0, 1, 2]);
+    // the spec is the catalogue factory's, verbatim
+    const r3 = rounds[3]!;
+    expect(plan.find((r) => r.round === 3)!.spec).toEqual(goalInWindow(3, r3.windowStart, r3.windowEnd));
+  });
+
+  test("deterministic market ids — two openers racing can't fork a round", () => {
+    expect(microRoundMarketId("fra-bra", 3)).toBe("m-fra-bra-r3");
+    expect(planMicroRounds("fx", rounds, 25 * 60_000)).toEqual(planMicroRounds("fx", rounds, 25 * 60_000));
+  });
+});
+
+describe("terraceVm — live micro-rounds float to the top", () => {
+  test("open goal-in-window markets sort above the rest, by round; locked rounds don't float", async () => {
+    const kv = await foldMessages([
+      ...BASE, // m1 is a match-result
+      goalMarket(ana, "z-g0", 0, T0, T0 + 600_000, T0 + 600_000, T0 + 2),
+      goalMarket(ana, "z-g1", 1, T0 + 600_000, T0 + 1_200_000, T0 + 1_200_000, T0 + 3),
+      lock(ana, "z-g1", T0 + 100),
+    ]);
+    const vm = await terraceVm(kv, state({ now: T0 + 50 }));
+    expect(vm.markets.map((m) => m.marketId)).toEqual(["z-g0", "m1", "z-g1"]);
+    expect(vm.markets.find((m) => m.marketId === "z-g0")).toMatchObject({
+      kind: "goal-in-window",
+      round: 0,
+      liveRound: true,
+      locked: false,
+    });
+    expect(vm.markets.find((m) => m.marketId === "z-g1")).toMatchObject({ round: 1, liveRound: false, locked: true });
+    expect(vm.markets.find((m) => m.marketId === "m1")).toMatchObject({ kind: "match-result", round: null, liveRound: false });
+  });
+});
+
+describe("leaderboardVm — realized P&L off the same payout engine (F4)", () => {
+  test("three resolved markets fold into signed, sorted, named rows", async () => {
+    const kv = await foldMessages(LB);
+    const lb = await leaderboardVm(kv, state({ now: T0 + 200 + DISPUTE_MS + 10 }));
+    expect(lb.resolvedCount).toBe(3);
+    expect(lb.hasResolved).toBe(true);
+    expect(lb.rows.map((r) => ({ name: r.name, net: r.net, netLabel: r.netLabel, markets: r.markets }))).toEqual([
+      { name: "ana", net: 14n * USDT, netLabel: "+14.00", markets: 2 },
+      { name: "bo", net: 0n, netLabel: "0.00", markets: 2 },
+      { name: "cai", net: -14n * USDT, netLabel: "-14.00", markets: 2 },
+    ]);
+    // conservation: at feeBps 0 the whole board nets to zero.
+    expect(lb.rows.reduce((s, r) => s + r.net, 0n)).toBe(0n);
+    // net equals what settlement actually pays: ana's payout − staked.
+    const ana0 = lb.rows.find((r) => r.name === "ana")!;
+    expect(ana0.payout - ana0.staked).toBe(ana0.net);
+  });
+
+  test("no resolved markets → empty board", async () => {
+    const lb = await leaderboardVm(await foldMessages(BASE), state());
+    expect(lb.hasResolved).toBe(false);
+    expect(lb.rows).toEqual([]);
+    expect(lb.resolvedCount).toBe(0);
+  });
+});
+
+describe("escrowVm — trust tiers, made visible (F5)", () => {
+  test("≥3 stakers → Tier 2 elects opener + top stakers (2-of-3)", async () => {
+    const e = await escrowVm(await foldMessages(LB), state());
+    expect(e.tier1Active).toBe(true);
+    expect(e.participantCount).toBe(3);
+    expect(e.tier2Available).toBe(true);
+    expect(e.threshold).toBe(2);
+    expect(e.stewards.map((s) => s.name).sort()).toEqual(["ana", "bo", "cai"]);
+    expect(e.note).toContain("2-of-3");
+  });
+
+  test("fewer than 3 stakers → Tier 2 unavailable, no stewards", async () => {
+    const e = await escrowVm(await foldMessages(BASE), state()); // only ana + bo staked
+    expect(e.tier1Active).toBe(true);
+    expect(e.tier2Available).toBe(false);
+    expect(e.stewards).toEqual([]);
+    expect(e.note).toContain("≥3");
+  });
+});
+
+describe("gafferPoolVm — one read the fallback and the LLM both take (F7)", () => {
+  test("builds the pool summary from the selected market's odds", async () => {
+    const kv = await foldMessages(BASE);
+    expect(await gafferPoolVm(kv, "m1")).toEqual({
+      title: "FRA v BRA",
+      outcomes: [
+        { key: "HOME", pct: 71 },
+        { key: "DRAW", pct: 0 },
+        { key: "AWAY", pct: 29 },
+      ],
+    });
+  });
+
+  test("no market → null pool; gafferVm still has the idle line", async () => {
+    const kv = await foldMessages([hello(ana, "ana")]);
+    expect(await gafferPoolVm(kv, null)).toBeNull();
+    expect(await gafferVm(kv, null)).toBe(GAFFER_IDLE);
+  });
+});
+
+describe("recentTerracesVm — one-tap rejoin list (F6)", () => {
+  const now = 10_000_000;
+
+  test("de-dupes by key (newest wins), sorts most-recent first, labels the gap", () => {
+    const rows = recentTerracesVm(
+      [
+        { key: "k1", name: "Alpha", role: "opener", lastSeen: now - 5 * 60_000 },
+        { key: "k2", name: "Beta", role: "joiner", lastSeen: now - 2 * 60_000 },
+        { key: "k1", name: "Alpha2", role: "opener", lastSeen: now - 1 * 60_000 },
+      ],
+      now,
+    );
+    expect(rows.map((r) => r.key)).toEqual(["k1", "k2"]);
+    expect(rows[0]).toMatchObject({ name: "Alpha2", seenLabel: "1m ago" });
+    expect(rows[1]!.seenLabel).toBe("2m ago");
+  });
+
+  test("caps the list at the limit", () => {
+    const many = Array.from({ length: 10 }, (_, i) => ({
+      key: "k" + i,
+      name: "n" + i,
+      role: "joiner",
+      lastSeen: now - i * 1000,
+    }));
+    expect(recentTerracesVm(many, now, 6)).toHaveLength(6);
   });
 });

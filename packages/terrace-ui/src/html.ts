@@ -12,7 +12,9 @@
 import {
   DEMO_BANNER,
   type ChatLineVm,
+  type EscrowVm,
   type HeaderVm,
+  type LeaderboardVm,
   type MarketVm,
   type OutcomeVm,
   type PnlVm,
@@ -117,6 +119,39 @@ export function previewLineHtml(outcomeKey: string, returnLabel: string): string
 /** Post-settle P&L line ("You're up 13.40 ✓"). Class swings on the sign. */
 export function pnlHtml(vm: PnlVm): string {
   return `<div class="pnl ${vm.won ? "square" : vm.net < 0n ? "warn" : "muted"}">${esc(vm.label)}</div>`;
+}
+
+// ── S14 surfaces: leaderboard, trust tiers ────────────────────────────────────
+
+/** Realized-P&L table. Names are peer strings → escaped; net class swings on the sign. */
+export function leaderboardHtml(vm: LeaderboardVm): string {
+  if (!vm.hasResolved) {
+    return `<div class="muted">No settled markets yet — the table fills in as markets resolve.</div>`;
+  }
+  const rows = vm.rows
+    .map(
+      (r) =>
+        `<div class="row"><span>${esc(r.name)}</span><span class="muted">${r.markets} mkt</span><span class="${
+          r.won ? "square" : r.net < 0n ? "warn" : "muted"
+        }">${esc(r.netLabel)} USDt</span></div>`,
+    )
+    .join("");
+  return `<div class="stack">${rows}</div>`;
+}
+
+/**
+ * Read-only trust-tier card. Tier 1 (mates) is always active; Tier 2 shows the
+ * elected steward names (peer strings → escaped) when the terrace is big enough.
+ * Thresholds and counts are numbers, never peer data.
+ */
+export function escrowHtml(vm: EscrowVm): string {
+  const tier1 = `<div class="row"><span class="pill ok">Tier 1 · Mates</span><span class="muted">direct settle — active</span></div>`;
+  const tier2 = vm.tier2Available
+    ? `<div class="stack"><div class="row"><span class="pill ok">Tier 2 · Escrow</span><span class="muted">${vm.threshold}-of-${vm.stewards.length} co-signers</span></div><div class="row wrap">${vm.stewards
+        .map((s) => `<span class="pill">${esc(s.name)}</span>`)
+        .join(" ")}</div></div>`
+    : `<div class="row"><span class="pill">Tier 2 · Escrow</span><span class="muted">standby</span></div>`;
+  return `<div class="stack">${tier1}${tier2}<div class="muted">${esc(vm.note)}</div></div>`;
 }
 
 /** Quorum progress: per-outcome thresholds + who attested what. All keys/names escaped. */

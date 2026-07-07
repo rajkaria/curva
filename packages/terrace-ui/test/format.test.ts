@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import fc from "fast-check";
-import { countdown, parseUsdt, shortKey, usdt } from "../src/format.js";
+import { agoLabel, countdown, parseUsdt, shortKey, usdt } from "../src/format.js";
 
 describe("usdt", () => {
   test("whole amounts render with two decimals", () => {
@@ -58,5 +58,21 @@ describe("shortKey", () => {
 
   test("short inputs come back whole", () => {
     expect(shortKey("0xa")).toBe("0xa");
+  });
+});
+
+describe("agoLabel", () => {
+  test("sub-minute (and future/clock-skew) reads as just now", () => {
+    expect(agoLabel(0)).toBe("just now");
+    expect(agoLabel(59_000)).toBe("just now");
+    expect(agoLabel(-5_000)).toBe("just now");
+  });
+
+  test("minutes, hours, then days", () => {
+    expect(agoLabel(3 * 60_000)).toBe("3m ago");
+    expect(agoLabel(59 * 60_000)).toBe("59m ago");
+    expect(agoLabel(2 * 3_600_000)).toBe("2h ago");
+    expect(agoLabel(23 * 3_600_000)).toBe("23h ago");
+    expect(agoLabel(3 * 86_400_000)).toBe("3d ago");
   });
 });

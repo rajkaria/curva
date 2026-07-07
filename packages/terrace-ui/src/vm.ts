@@ -25,8 +25,23 @@ import {
 } from "@tifo/terrace-base";
 import { buildPools, computePayouts, impliedOdds, type Bet, type PayoutManifest } from "@tifo/market-kernel";
 import { resolveMarket, tallyBreakdown, type Resolution } from "@tifo/crowd-oracle";
-import { fallbackQuip, renderForViewer, type Translator } from "@tifo/qvac-surfaces";
-import { countdown, shortKey, usdt } from "./format.js";
+import { fallbackQuip, renderForViewer, type PoolSummary, type Translator } from "@tifo/qvac-surfaces";
+import {
+  correctScore,
+  firstScorer,
+  goalInWindow,
+  matchResult,
+  totalGoalsLadder,
+  type MarketSpec,
+  type MicroRound,
+} from "@tifo/market-catalogue";
+import { electStewards } from "@tifo/steward-escrow";
+import { agoLabel, countdown, shortKey, usdt } from "./format.js";
+
+/** A signed USDt delta: "+13.40" / "-5.00" / "0.00". Positive keeps the sign. */
+function signedUsdt(micros: bigint): string {
+  return micros > 0n ? `+${usdt(micros)}` : usdt(micros);
+}
 
 /** Local, non-replicated UI state the VMs need. The app owns and passes it. */
 export interface UiState {
@@ -48,6 +63,11 @@ export interface UiState {
 export interface MarketListItemVm {
   readonly marketId: string;
   readonly title: string;
+  readonly kind: string;
+  /** Micro-round index (from a goal-in-window market's meta); null otherwise. */
+  readonly round: number | null;
+  /** A goal-in-window round still open for betting — floats to the top of the list. */
+  readonly liveRound: boolean;
   readonly locked: boolean;
   /** "closes in 12:04" while open, "LOCKED" after the whistle. */
   readonly closesLabel: string;
@@ -68,14 +88,28 @@ export async function terraceVm(kv: KV, state: UiState): Promise<TerraceVm> {
   const items: MarketListItemVm[] = [];
   for (const m of markets) {
     const locked = await isLocked(kv, m.marketId);
+    const round =
+      m.kind === "goal-in-window" && typeof m.params.meta?.round === "number" ? m.params.meta.round : null;
     items.push({
       marketId: m.marketId,
       title: m.params.title,
+      kind: m.kind,
+      round,
+      liveRound: round !== null && !locked,
       locked,
       closesLabel: locked ? "LOCKED" : `closes in ${countdown(m.cutoffAt - state.now)}`,
       closesAt: locked ? null : m.cutoffAt,
     });
   }
+  // Live micro-round markets (open goal-in-window) float to the top, in round
+  // order — the terrace never runs out of something live to trade; everything
+  // else keeps its view order (stable sort).
+  items.sort((a, b) => {
+    const ra = a.liveRound ? 0 : 1;
+    const rb = b.liveRound ? 0 : 1;
+    if (ra !== rb) return ra - rb;
+    return ra === 0 ? a.round! - b.round! : 0;
+  });
   return {
     role: state.role,
     writable: state.writable,
@@ -244,16 +278,29 @@ export async function chatVm(kv: KV, state: UiState, translator: Translator): Pr
 
 // ── gaffer ───────────────────────────────────────────────────────────────────
 
-/** The Gaffer's deterministic quip about the selected (or first) market. */
-export async function gafferVm(kv: KV, selectedMarketId: string | null): Promise<string> {
+/** No market to talk about yet — the Gaffer still says something. */
+export const GAFFER_IDLE = "Open a market and I'll have something to say.";
+
+/**
+ * The pool summary the Gaffer riffs on — the same shape {@link fallbackQuip}
+ * and the real QVAC LLM both take, so the app can route either path off one
+ * read. Null when there's no market yet.
+ */
+export async function gafferPoolVm(kv: KV, selectedMarketId: string | null): Promise<PoolSummary | null> {
   const markets = await readMarkets(kv);
   const m = markets.find((x) => x.marketId === selectedMarketId) ?? markets[0];
-  if (!m) return "Open a market and I'll have something to say.";
+  if (!m) return null;
   const odds = impliedOdds(buildPools(toKernelBets(await readValidBets(kv, m.marketId)), m.feeBps));
-  return fallbackQuip({
+  return {
     title: m.params.title,
     outcomes: m.params.outcomes.map((k) => ({ key: k, pct: Math.round((odds[k]?.probability ?? 0) * 100) })),
-  });
+  };
+}
+
+/** The Gaffer's deterministic quip about the selected (or first) market. */
+export async function gafferVm(kv: KV, selectedMarketId: string | null): Promise<string> {
+  const pool = await gafferPoolVm(kv, selectedMarketId);
+  return pool ? fallbackQuip(pool) : GAFFER_IDLE;
 }
 
 // ── header: honesty, presence, money ──────────────────────────────────────────
@@ -471,3 +518,271 @@ export const LANGS: readonly Lang[] = [
   { code: "ar", label: "العربية" },
   { code: "hi", label: "हिन्दी" },
 ];
+
+// ── market picker: the whole catalogue, made openable (F1) ────────────────────
+
+/** Just enough of a fixture for the picker + micro-rounds — no app types leak in. */
+export interface FixtureLike {
+  readonly id: string;
+  readonly home: string;
+  readonly away: string;
+  readonly homeSquad?: readonly string[];
+  readonly awaySquad?: readonly string[];
+}
+
+export interface MarketPickerOptionVm {
+  /** Button copy — our own constant, never a peer string. */
+  readonly label: string;
+  /** The exact factory `{ kind, params }` the app signs — no drift, no re-derivation. */
+  readonly spec: MarketSpec;
+}
+
+/**
+ * Every catalogue market kind reachable for one fixture, each carrying the exact
+ * factory spec the app emits verbatim — Result, both total-goals lines, first
+ * scorer over the bundled danger men, and the correct-score grid. `goal-in-window`
+ * is the fifth kind and comes from the micro-round planner ({@link planMicroRounds}),
+ * so between the two every {@link MarketKind} is openable from the UI.
+ */
+export function marketPickerVm(fx: FixtureLike): MarketPickerOptionVm[] {
+  const options: MarketPickerOptionVm[] = [
+    { label: "Result", spec: matchResult(fx.home, fx.away) },
+    ...totalGoalsLadder([2.5, 3.5]).map((spec) => ({
+      label: `Total goals O/U ${(Number(spec.params.meta?.lineTenths ?? 0) / 10).toFixed(1)}`,
+      spec,
+    })),
+  ];
+  const squad = [...(fx.homeSquad ?? []), ...(fx.awaySquad ?? [])];
+  if (squad.length > 0) options.push({ label: "First scorer", spec: firstScorer(squad) });
+  options.push({ label: "Correct score", spec: correctScore(3) });
+  return options;
+}
+
+// ── micro-rounds: the live-demo killer, planned deterministically (F2) ────────
+
+/** Deterministic id so two openers racing to open the same round can't fork it
+ *  — first-market-wins in the fold makes the duplicate a no-op. */
+export function microRoundMarketId(fixtureId: string, round: number): string {
+  return `m-${fixtureId}-r${round}`;
+}
+
+export interface MicroRoundMarketVm {
+  readonly round: number;
+  readonly marketId: string;
+  /** goal-in-window spec for this round — signed verbatim, cutoff below. */
+  readonly spec: MarketSpec;
+  readonly cutoffAt: number;
+  /** The betting window has opened → this market should be locked. */
+  readonly shouldLock: boolean;
+}
+
+/**
+ * The pure "what should exist / be locked at time `now`" planner for one
+ * fixture's micro-rounds. A round's market appears one round-length before its
+ * cutoff (you bet on the round before it starts) and should be locked once its
+ * window opens. The app diffs this against the view and emits only the missing
+ * `market`/`lock` messages, so re-running every tick is idempotent.
+ */
+export function planMicroRounds(
+  fixtureId: string,
+  rounds: readonly MicroRound[],
+  now: number,
+): MicroRoundMarketVm[] {
+  const out: MicroRoundMarketVm[] = [];
+  for (const r of rounds) {
+    const leadMs = r.windowEnd - r.windowStart; // open one round-length ahead
+    if (now < r.cutoffAt - leadMs) continue; // lead-in hasn't started yet
+    out.push({
+      round: r.round,
+      marketId: microRoundMarketId(fixtureId, r.round),
+      spec: goalInWindow(r.round, r.windowStart, r.windowEnd),
+      cutoffAt: r.cutoffAt,
+      shouldLock: now >= r.cutoffAt, // window open → betting closed
+    });
+  }
+  return out;
+}
+
+// ── leaderboard: realized P&L across the terrace (F4) ─────────────────────────
+
+export interface LeaderRowVm {
+  readonly id: string;
+  readonly name: string;
+  readonly staked: bigint;
+  readonly payout: bigint;
+  /** payout − staked, across every resolved market. */
+  readonly net: bigint;
+  /** "+13.40" / "-5.00" / "0.00". */
+  readonly netLabel: string;
+  readonly won: boolean;
+  /** How many resolved markets this bettor was in. */
+  readonly markets: number;
+}
+export interface LeaderboardVm {
+  /** Sorted by net desc, ties by name. */
+  readonly rows: readonly LeaderRowVm[];
+  readonly resolvedCount: number;
+  readonly hasResolved: boolean;
+}
+
+/**
+ * Every resolved market's realized P&L, folded per bettor. Payouts come from the
+ * canonical {@link computePayouts} — the same engine settlement runs — so a
+ * bettor's leaderboard net equals the sum of what settle actually pays, never a
+ * parallel formula. A market counts as resolved by the same {@link resolveMarket}
+ * the market screen uses, so the board can't credit a win the rule wouldn't.
+ */
+export async function leaderboardVm(kv: KV, state: UiState): Promise<LeaderboardVm> {
+  const markets = await readMarkets(kv);
+  const identities = await readIdentities(kv);
+  const staked = new Map<string, bigint>();
+  const payout = new Map<string, bigint>();
+  const counted = new Map<string, number>();
+  let resolvedCount = 0;
+
+  for (const m of markets) {
+    const betRows = await readValidBets(kv, m.marketId);
+    if (betRows.length === 0) continue;
+    const stakes = stakeByBettor(betRows);
+    const resolution = resolveMarket({
+      events: await readAttestationLog(kv, m.marketId),
+      stakeByWriter: stakes,
+      now: state.now,
+      disputeWindowMs: state.disputeWindowMs,
+    });
+    if (resolution.status !== "resolved") continue;
+    resolvedCount++;
+
+    const manifest = computePayouts({
+      bets: toKernelBets(betRows),
+      resolution: { kind: "outcome", outcomeKey: resolution.outcomeKey },
+      feeBps: m.feeBps,
+    });
+    const payByBettor = new Map<string, bigint>();
+    for (const l of manifest.lines) payByBettor.set(l.bettorId, (payByBettor.get(l.bettorId) ?? 0n) + l.amount);
+
+    for (const [id, s] of stakes) {
+      staked.set(id, (staked.get(id) ?? 0n) + s);
+      payout.set(id, (payout.get(id) ?? 0n) + (payByBettor.get(id) ?? 0n));
+      counted.set(id, (counted.get(id) ?? 0) + 1);
+    }
+  }
+
+  const rows: LeaderRowVm[] = [...staked.keys()]
+    .map((id) => {
+      const s = staked.get(id) ?? 0n;
+      const p = payout.get(id) ?? 0n;
+      const net = p - s;
+      return {
+        id,
+        name: nameOf(identities, id),
+        staked: s,
+        payout: p,
+        net,
+        netLabel: signedUsdt(net),
+        won: net > 0n,
+        markets: counted.get(id) ?? 0,
+      };
+    })
+    .sort((a, b) => (a.net !== b.net ? (a.net > b.net ? -1 : 1) : a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+
+  return { rows, resolvedCount, hasResolved: resolvedCount > 0 };
+}
+
+// ── escrow: the trust tiers, made visible (F5) ────────────────────────────────
+
+export interface StewardVm {
+  readonly id: string;
+  readonly name: string;
+}
+export interface EscrowVm {
+  /** Mates Mode (Tier 1) is always on — the direct-settle path the demo uses. */
+  readonly tier1Active: boolean;
+  /** Distinct stakers plus the opener — the electable set. */
+  readonly participantCount: number;
+  /** Tier 2 (2-of-3 steward escrow) needs ≥3 electable participants. */
+  readonly tier2Available: boolean;
+  readonly threshold: number;
+  /** The elected stewards (opener + top stakers), by name; empty when tier 2 is unavailable. */
+  readonly stewards: readonly StewardVm[];
+  readonly note: string;
+}
+
+/**
+ * A read-only view of the two trust tiers for this terrace. Tier 2's steward set
+ * is the deterministic {@link electStewards} election (opener + the two largest
+ * stakers, ties by idKey) over the identities who've actually staked — every peer
+ * computes the same three names. No money flow changes; this only surfaces what
+ * @tifo/steward-escrow already decides.
+ */
+export async function escrowVm(kv: KV, state: UiState): Promise<EscrowVm> {
+  const identities = await readIdentities(kv);
+  const markets = await readMarkets(kv);
+
+  const stake = new Map<string, bigint>();
+  for (const m of markets) {
+    for (const [id, s] of stakeByBettor(await readValidBets(kv, m.marketId))) {
+      stake.set(id, (stake.get(id) ?? 0n) + s);
+    }
+  }
+
+  // Deterministic opener: the earliest-created market's opener (ties by id),
+  // falling back to the viewer when no market exists yet.
+  const opener =
+    [...markets].sort((a, b) =>
+      a.createdAt !== b.createdAt ? a.createdAt - b.createdAt : a.marketId < b.marketId ? -1 : 1,
+    )[0]?.opener ?? state.viewerId;
+
+  const electable = new Set(stake.keys());
+  electable.add(opener);
+  const tier2Available = electable.size >= 3;
+
+  let stewards: StewardVm[] = [];
+  let threshold = 0;
+  if (tier2Available) {
+    const set = electStewards(opener, stake);
+    threshold = set.threshold;
+    stewards = set.stewards.map((id) => ({ id, name: nameOf(identities, id) }));
+  }
+
+  return {
+    tier1Active: true,
+    participantCount: electable.size,
+    tier2Available,
+    threshold,
+    stewards,
+    note: tier2Available
+      ? `Tier 2 ready — ${threshold}-of-${stewards.length} steward escrow (opener + top stakers).`
+      : `Tier 2 needs ≥3 stakers in the terrace (have ${electable.size}).`,
+  };
+}
+
+// ── recent terraces: one-tap rejoin (F6) ──────────────────────────────────────
+
+/** A remembered terrace (persisted app-side in localStorage, never replicated). */
+export interface RecentTerrace {
+  readonly key: string;
+  readonly name: string;
+  readonly role: string;
+  readonly lastSeen: number;
+}
+export interface RecentTerraceVm extends RecentTerrace {
+  readonly seenLabel: string;
+}
+
+/** Most-recent-first, de-duped by key, capped — with a coarse "seen" label. */
+export function recentTerracesVm(
+  entries: readonly RecentTerrace[],
+  now: number,
+  limit = 6,
+): RecentTerraceVm[] {
+  const byKey = new Map<string, RecentTerrace>();
+  for (const e of entries) {
+    const prev = byKey.get(e.key);
+    if (!prev || e.lastSeen > prev.lastSeen) byKey.set(e.key, e);
+  }
+  return [...byKey.values()]
+    .sort((a, b) => b.lastSeen - a.lastSeen)
+    .slice(0, limit)
+    .map((e) => ({ ...e, seenLabel: agoLabel(now - e.lastSeen) }));
+}

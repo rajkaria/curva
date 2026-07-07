@@ -69,6 +69,12 @@
     .chat { max-height: 180px; overflow-y: auto; }
     .chat .line { padding: 4px 0; border-bottom: 1px solid var(--line); }
     .gaffer { font-style: italic; color: var(--draw); }
+    details { border-top: 1px solid var(--line); padding-top: 6px; }
+    details:first-of-type { border-top: 0; padding-top: 0; }
+    summary { cursor: pointer; padding: 6px 0; font-weight: 600; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: "▸ "; color: var(--muted); }
+    details[open] > summary::before { content: "▾ "; }
     .square { color: var(--good); font-weight: 700; }
     .hidden { display: none; }
     .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);

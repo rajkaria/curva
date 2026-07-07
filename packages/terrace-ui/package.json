@@ -14,8 +14,10 @@
   "dependencies": {
     "@tifo/terrace-base": "0.1.0",
     "@tifo/market-kernel": "0.1.0",
+    "@tifo/market-catalogue": "0.1.0",
     "@tifo/crowd-oracle": "0.1.0",
-    "@tifo/qvac-surfaces": "0.1.0"
+    "@tifo/qvac-surfaces": "0.1.0",
+    "@tifo/steward-escrow": "0.1.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts"
