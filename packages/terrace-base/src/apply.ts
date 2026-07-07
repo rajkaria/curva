@@ -11,6 +11,9 @@
  * Rules, in order, per message (any failing rule → the message is silently
  * dropped, identically on every peer, so drops don't break convergence):
  *  - signature must recover to the message's `author`
+ *  - schema version must be 1 and `ts` finite; per-type fields are validated
+ *    (string types, length caps, kind whitelist) so hostile payloads die here,
+ *    not in a renderer
  *  - every non-hello message requires the author to have a registered `hello`
  *  - `market`   — first market for an id wins; feeBps and outcomes validated
  *  - `bet`      — known market + valid outcome + positive amount + unused nonce
@@ -30,6 +33,25 @@ export const FENCE_GRACE_MS = 90_000;
 
 const SEQ_WIDTH = 12;
 const padSeq = (n: number) => n.toString().padStart(SEQ_WIDTH, "0");
+
+/**
+ * The linearized-index counter, persisted IN the view. It must not live in
+ * process memory: Autobase can truncate and re-apply (and the app restarts),
+ * and view keys embed this index — a process-local counter would diverge
+ * across peers/restarts. A view row rolls back atomically with the bee.
+ */
+const SEQ_KEY = "meta!seq";
+
+const KINDS: ReadonlySet<string> = new Set([
+  "match-result",
+  "total-goals",
+  "goal-in-window",
+  "first-scorer",
+  "correct-score",
+]);
+
+const isStr = (v: unknown, max: number): v is string =>
+  typeof v === "string" && v.length > 0 && v.length <= max;
 
 export interface IdentityRow {
   readonly name: string;
@@ -60,19 +82,25 @@ export interface AttestRow {
 /** Fold an ordered message list into a fresh in-memory view. */
 export async function foldMessages(messages: readonly Msg[]): Promise<MemoryKV> {
   const kv = new MemoryKV();
-  let seq = 0;
-  for (const msg of messages) {
-    await applyMessage(kv, msg, seq);
-    seq += 1;
-  }
+  for (const msg of messages) await applyMessage(kv, msg);
   return kv;
 }
 
-/** Apply one message at linearized index `seq`. Exported for the Autobase adapter. */
-export async function applyMessage(kv: KV, msg: Msg, seq: number): Promise<void> {
+/**
+ * Apply one message. Exported for the Autobase adapter. The linearized index
+ * comes from the view's own `meta!seq` row and advances for EVERY message —
+ * accepted or dropped — so it always equals the message's position in the
+ * shared linearization, on every peer, across restarts and re-applies.
+ */
+export async function applyMessage(kv: KV, msg: Msg): Promise<void> {
+  const seq = Number((await kv.get(SEQ_KEY)) ?? 0);
+  await kv.put(SEQ_KEY, seq + 1);
+
   if (!verifyMessage(msg)) return;
+  if (msg.v !== 1 || !Number.isFinite(msg.ts)) return;
 
   if (msg.t === "hello") {
+    if (!isStr(msg.name, 40) || !isStr(msg.walletAddr, 128)) return;
     const key = `id!${msg.author}`;
     if ((await kv.get(key)) === undefined) {
       await kv.put(key, { name: msg.name, walletAddr: msg.walletAddr });
@@ -88,7 +116,19 @@ export async function applyMessage(kv: KV, msg: Msg, seq: number): Promise<void>
       const key = `mkt!${msg.marketId}`;
       if ((await kv.get(key)) !== undefined) return; // first market for this id wins
       if (!Number.isInteger(msg.feeBps) || msg.feeBps < 0 || msg.feeBps > 10_000) return;
-      if (!Array.isArray(msg.params.outcomes) || msg.params.outcomes.length < 2) return;
+      if (!KINDS.has(msg.kind) || !Number.isFinite(msg.cutoffAt)) return;
+      if (!isStr(msg.params?.title, 200)) return;
+      const outs = msg.params.outcomes;
+      if (!Array.isArray(outs) || outs.length < 2 || outs.length > 256) return;
+      if (!outs.every((o) => isStr(o, 64))) return;
+      if (new Set(outs).size !== outs.length) return;
+      if (msg.params.meta !== undefined) {
+        const meta: unknown = msg.params.meta;
+        if (typeof meta !== "object" || meta === null || Array.isArray(meta)) return;
+        for (const v of Object.values(meta)) {
+          if (typeof v !== "string" && typeof v !== "number") return;
+        }
+      }
       const row: MarketRow = {
         marketId: msg.marketId,
         kind: msg.kind,
@@ -106,6 +146,7 @@ export async function applyMessage(kv: KV, msg: Msg, seq: number): Promise<void>
       if (!market) return;
       if (!market.params.outcomes.includes(msg.outcomeKey)) return;
       if (typeof msg.amount !== "bigint" || msg.amount <= 0n) return;
+      if (!isStr(msg.nonce, 64)) return;
       const nonceKey = `betseen!${msg.marketId}!${msg.nonce}`;
       if ((await kv.get(nonceKey)) !== undefined) return; // dedup
       if ((await kv.get(`lock!${msg.marketId}`)) !== undefined) return; // fence: after first lock
@@ -131,6 +172,11 @@ export async function applyMessage(kv: KV, msg: Msg, seq: number): Promise<void>
     case "attest": {
       const market = (await kv.get(`mkt!${msg.marketId}`)) as MarketRow | undefined;
       if (!market || !market.params.outcomes.includes(msg.outcomeKey)) return;
+      if (msg.evidence !== undefined) {
+        const c = msg.evidence.confidence;
+        if (typeof c !== "number" || !Number.isFinite(c) || c < 0 || c > 1) return;
+        if (msg.evidence.asrScore !== undefined && !isStr(msg.evidence.asrScore, 64)) return;
+      }
       const row: AttestRow = {
         outcomeKey: msg.outcomeKey,
         confidence: msg.evidence?.confidence ?? 1,
@@ -147,11 +193,15 @@ export async function applyMessage(kv: KV, msg: Msg, seq: number): Promise<void>
     }
     case "receipt": {
       if ((await kv.get(`mkt!${msg.marketId}`)) === undefined) return;
+      if (!Number.isInteger(msg.manifestLine) || msg.manifestLine < 0 || msg.manifestLine >= 1e12) return;
+      // txid may be "" (dry run) — only its type and size are constrained.
+      if (typeof msg.txid !== "string" || msg.txid.length > 128) return;
       const key = `paid!${msg.marketId}!${padSeq(msg.manifestLine)}`;
       if ((await kv.get(key)) === undefined) await kv.put(key, { txid: msg.txid, by: msg.author });
       return;
     }
     case "chat": {
+      if (!isStr(msg.text, 2000) || !isStr(msg.lang, 8)) return;
       await kv.put(`chat!${padSeq(seq)}`, {
         author: msg.author,
         text: msg.text,

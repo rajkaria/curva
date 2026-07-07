@@ -22,8 +22,10 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Current state — what's working, deployed, broken
 
-- **All sprints S0–S10 DONE**, committed and pushed to `main` (HEAD `b702a34`).
-- **141 tests green** (property + fuzz + e2e). Gates all pass:
+- **S0–S11 DONE.** S0–S10 pushed to `main`; S11 (audit hardening) on branch
+  `claude/silly-goldwasser-60969e`. Audit roadmap S12–S16 planned in
+  [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/).
+- **160 tests green** (property + fuzz + e2e). Gates all pass:
   `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline). CI runs all three + e2e smoke.
 - npm workspaces, strict TS. Packages under `packages/` (9) + `apps/terrace` (Pear app).
@@ -39,6 +41,11 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   via largest-remainder dust. Ported from Hunch `computeMarketPayouts` (declared).
 - `terrace-base` — signed msg protocol, deterministic `apply` fold, cutoff fence,
   `TerraceNode` Autobase/Hyperswarm runtime, append-only attestation log (`alog!`).
+  S11: linearized index persisted in-view (`meta!seq`, restart/truncate-safe;
+  `applyMessage(kv, msg)` — no seq param) + strict per-field message validation.
+- `apps/terrace` S11: esc() on all peer strings, class allowlist, `busy()`
+  single-flight buttons, emit writability guard, author-suffixed ids, stable
+  per-terrace storage dirs.
 - `sim` — Lamport-ordered swarm model + fast-check fuzzer + `scenario.ts` runner.
 - `wdk-vault` — seed→identity+wallet (BIP-39/44, matches S0b vector), min-transfer
   netting, settlement over WalletAdapter (`FakeWallet` / lazy `WdkWallet`),
@@ -66,7 +73,12 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Next steps — specific, actionable
 
-Code is complete. Remaining items are **human-only** (see SUBMISSION.md):
+**Next sprint: S12** (render architecture + render tests —
+[plans/s12-render.md](../plans/s12-render.md)), then S13–S16 per
+[IMPROVEMENTS.md](../IMPROVEMENTS.md). Note: S13 closes the honesty gap where
+SUBMISSION.md claims demo-mode is "labelled in-UI" but no banner exists yet.
+
+Human-only submission items (see SUBMISSION.md):
 1. Register on DoraHacks, select all three tracks.
 2. Record the ≤3-min YouTube demo (script: [DEMO.md](../DEMO.md)).
 3. Fund a testnet wallet (faucet USDt + gas) for a real settlement txid on camera.

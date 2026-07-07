@@ -92,7 +92,26 @@ JS build (dual export conditions, `npm run build`), CI = check + build + demo sm
 docs (ARCHITECTURE/ORACLE/TRUST/DEMO/VISION), README + prior-work declaration,
 judge-loop self-review ([SUBMISSION.md](./SUBMISSION.md)). 141 tests green.
 
+## S11 — correctness & security hardening — DONE
+Gate: fold-validation + seq-determinism tests green; check/build/demo green — **PASSED** (160 tests).
+From the 2026-07-07 product audit ([IMPROVEMENTS.md](./IMPROVEMENTS.md), plan:
+[plans/s11-hardening.md](./plans/s11-hardening.md)):
+- **Fold:** linearized index now lives in the view (`meta!seq`) — survives app
+  restarts and rolls back atomically on Autobase truncate (was a process-local
+  counter → divergent view keys on device). Strict field validation (string
+  types, length caps, kind whitelist, finite ts/cutoff, v===1) so hostile
+  payloads die at the protocol layer, not in a renderer.
+- **App:** all peer-derived strings escaped before `innerHTML`; outcome CSS
+  classes via allowlist only (kills class injection); single-flight `busy()`
+  guard on every async button (no double-click double-bets); stake validation;
+  `emit()` writability guard + error toasts; author-suffixed marketIds/nonces
+  (no same-ms collisions); stable per-terrace storage dirs (writer key survives
+  restarts, no per-launch store leak).
+
+Roadmap for S12–S16 (render architecture/tests, UX quick wins, feature wiring,
+pairing + browser demo, trust hardening): [IMPROVEMENTS.md](./IMPROVEMENTS.md).
+
 ---
-**Totals:** 10 packages + app, 141 tests (property + fuzz + e2e), `npm run check`
+**Totals:** 10 packages + app, 160 tests (property + fuzz + e2e), `npm run check`
 + `npm run build` + `npm run demo` all green. Remaining human-only items are listed
 in [SUBMISSION.md](./SUBMISSION.md).

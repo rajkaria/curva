@@ -1,11 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { randomIdentity, type Identity } from "../src/identity.js";
-import { signMessage, type Msg } from "../src/protocol.js";
+import { signMessage, type Msg, type UnsignedMsg } from "../src/protocol.js";
+import { MemoryKV } from "../src/view.js";
 import {
+  applyMessage,
   foldMessages,
   isLocked,
+  readChat,
   readMarket,
   readPools,
+  readReceipts,
   readValidBets,
   readAttestations,
   readIdentities,
@@ -191,5 +195,159 @@ describe("determinism (the convergence primitive)", () => {
     );
     expect(await readAttestations(kvB, "m1")).toEqual(await readAttestations(kvA, "m1"));
     expect(await isLocked(kvB, "m1")).toBe(true);
+  });
+});
+
+describe("seq determinism — the counter lives in the view, not the process", () => {
+  const msgs = (): Msg[] => [
+    hello(ana, "ana"),
+    hello(bo, "bo"),
+    market(ana, "m1", 1000),
+    bet(ana, "m1", "HOME", 10n, "n1", 100),
+    bet(bo, "m1", "AWAY", 5n, "n2", 100),
+    lock(bo, "m1", 1000),
+    attest(ana, "m1", "HOME", 0.9, 2000),
+  ];
+
+  test("resuming a fold on a persisted view matches a one-shot fold (restart survival)", async () => {
+    const all = msgs();
+    const oneShot = await foldMessages(all);
+    // First "process": applies a prefix, then dies.
+    const kv = new MemoryKV();
+    for (const m of all.slice(0, 3)) await applyMessage(kv, m);
+    // Second "process": fresh memory, no in-process counter — resumes on the same view.
+    for (const m of all.slice(3)) await applyMessage(kv, m);
+    expect(await viewDigest(kv)).toBe(await viewDigest(oneShot));
+  });
+
+  test("dropped messages still advance the linearized index (key numbering is stable)", async () => {
+    const forged = { ...hello(cai, "cai"), name: "mallory" } as Msg; // bad sig → dropped
+    const kv = await foldMessages([
+      hello(ana, "ana"), // seq 0
+      market(ana, "m1", 1000), // seq 1
+      forged, // seq 2 — dropped but counted
+      bet(ana, "m1", "HOME", 10n, "n1", 100), // seq 3
+    ]);
+    const keys: string[] = [];
+    for await (const { key } of kv.list({ gte: "bet!", lt: "bet!￿" })) keys.push(key);
+    expect(keys).toEqual(["bet!m1!000000000003"]);
+  });
+});
+
+describe("fold — field validation (hostile payloads die at the protocol layer)", () => {
+  const sign = (unsigned: Record<string, unknown>, id: Identity): Msg =>
+    signMessage(unsigned as unknown as UnsignedMsg, id.privKey);
+  const withHello = async (bad: Msg): Promise<MemoryKV> => foldMessages([hello(ana, "ana"), bad]);
+  const marketFields = (over: Record<string, unknown>): Record<string, unknown> => ({
+    t: "market",
+    v: 1,
+    author: ana.idKey,
+    marketId: "m1",
+    kind: "match-result",
+    params: { title: "FRA v BRA", outcomes: ["HOME", "DRAW", "AWAY"] },
+    cutoffAt: 1000,
+    feeBps: 0,
+    ts: 2,
+    ...over,
+  });
+
+  const badMarkets: Array<[string, Record<string, unknown>]> = [
+    ["non-string title", marketFields({ params: { title: 7, outcomes: ["A", "B"] } })],
+    ["oversize title", marketFields({ params: { title: "x".repeat(201), outcomes: ["A", "B"] } })],
+    ["non-string outcome", marketFields({ params: { title: "t", outcomes: ["A", 5] } })],
+    ["empty outcome", marketFields({ params: { title: "t", outcomes: ["A", ""] } })],
+    ["oversize outcome", marketFields({ params: { title: "t", outcomes: ["A", "x".repeat(65)] } })],
+    ["duplicate outcomes", marketFields({ params: { title: "t", outcomes: ["A", "A"] } })],
+    [
+      "too many outcomes",
+      marketFields({ params: { title: "t", outcomes: Array.from({ length: 257 }, (_, i) => `o${i}`) } }),
+    ],
+    ["unknown kind", marketFields({ kind: "coin-flip" })],
+    ["non-finite cutoff", marketFields({ cutoffAt: Number.NaN })],
+    ["non-scalar meta value", marketFields({ params: { title: "t", outcomes: ["A", "B"], meta: { x: { nested: true } } } })],
+  ];
+  for (const [label, fields] of badMarkets) {
+    test(`market with ${label} is dropped`, async () => {
+      const kv = await withHello(sign(fields, ana));
+      expect(await readMarket(kv, "m1")).toBeUndefined();
+    });
+  }
+
+  test("hello with a non-string or oversize name is dropped", async () => {
+    for (const name of [42, "x".repeat(41)]) {
+      const kv = await foldMessages([
+        sign({ t: "hello", v: 1, author: ana.idKey, name, walletAddr: "0xana", ts: 1 }, ana),
+      ]);
+      expect((await readIdentities(kv)).size).toBe(0);
+    }
+  });
+
+  test("chat with non-string/oversize text or lang is dropped", async () => {
+    const bads = [
+      { text: 9, lang: "en" },
+      { text: "x".repeat(2001), lang: "en" },
+      { text: "hi", lang: "x".repeat(9) },
+      { text: "hi", lang: 3 },
+    ];
+    for (const b of bads) {
+      const kv = await withHello(sign({ t: "chat", v: 1, author: ana.idKey, ts: 5, ...b }, ana));
+      expect((await readChat(kv)).length).toBe(0);
+    }
+  });
+
+  test("bet with a non-string or oversize nonce is dropped", async () => {
+    for (const nonce of [7, "", "x".repeat(65)]) {
+      const kv = await foldMessages([
+        hello(ana, "ana"),
+        market(ana, "m1", 1000),
+        sign({ t: "bet", v: 1, author: ana.idKey, marketId: "m1", outcomeKey: "HOME", amount: 1_000_000n, nonce, ts: 100 }, ana),
+      ]);
+      expect(await readPools(kv, "m1")).toEqual({});
+    }
+  });
+
+  test("attest with out-of-range confidence or non-string asrScore is dropped", async () => {
+    const bads = [{ confidence: 2 }, { confidence: Number.NaN }, { confidence: 0.5, asrScore: 9 }];
+    for (const evidence of bads) {
+      const kv = await foldMessages([
+        hello(ana, "ana"),
+        market(ana, "m1", 1000),
+        sign({ t: "attest", v: 1, author: ana.idKey, marketId: "m1", outcomeKey: "HOME", evidence, ts: 100 }, ana),
+      ]);
+      expect((await readAttestations(kv, "m1")).size).toBe(0);
+    }
+  });
+
+  test("receipt with a negative/non-integer line or non-string txid is dropped", async () => {
+    const bads = [
+      { manifestLine: -1, txid: "0xok" },
+      { manifestLine: 1.5, txid: "0xok" },
+      { manifestLine: 0, txid: 42 },
+      { manifestLine: 0, txid: "x".repeat(129) },
+    ];
+    for (const b of bads) {
+      const kv = await foldMessages([
+        hello(ana, "ana"),
+        market(ana, "m1", 1000),
+        sign({ t: "receipt", v: 1, author: ana.idKey, marketId: "m1", ts: 100, ...b }, ana),
+      ]);
+      expect((await readReceipts(kv, "m1")).length).toBe(0);
+    }
+  });
+
+  test("a message with an unknown schema version or non-finite ts is dropped", async () => {
+    const v2 = sign({ t: "chat", v: 2, author: ana.idKey, text: "hi", lang: "en", ts: 5 }, ana);
+    const badTs = sign({ t: "chat", v: 1, author: ana.idKey, text: "hi", lang: "en", ts: Number.NaN }, ana);
+    const kv = await foldMessages([hello(ana, "ana"), v2, badTs]);
+    expect((await readChat(kv)).length).toBe(0);
+  });
+
+  test("a valid dry-run receipt (empty txid) is still accepted", async () => {
+    const kv = await foldMessages([
+      hello(ana, "ana"),
+      market(ana, "m1", 1000),
+      sign({ t: "receipt", v: 1, author: ana.idKey, marketId: "m1", manifestLine: 0, txid: "", ts: 100 }, ana),
+    ]);
+    expect((await readReceipts(kv, "m1")).length).toBe(1);
   });
 });

@@ -65,7 +65,6 @@ export class TerraceNode {
   private store: Any;
   private base: Any;
   private swarm: Any;
-  private seq = 0;
 
   private constructor(private readonly opts: TerraceOptions) {}
 
@@ -100,7 +99,9 @@ export class TerraceNode {
             await host.addWriter(b4a.from((v as AddWriterNode).key, "hex"), { indexer: true });
             continue;
           }
-          await applyMessage(kv, v as Msg, this.seq++);
+          // The linearized index lives in the view itself (meta!seq), so it
+          // survives restarts and rolls back atomically on Autobase truncate.
+          await applyMessage(kv, v as Msg);
         }
       },
     });
