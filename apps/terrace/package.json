@@ -23,6 +23,7 @@
     "@tifo/crowd-oracle": "0.1.0",
     "@tifo/wdk-vault": "0.1.0",
     "@tifo/qvac-surfaces": "0.1.0",
+    "@tifo/terrace-ui": "0.1.0",
     "autobase": "7.28.1",
     "corestore": "7.11.0",
     "hyperbee": "2.27.3",

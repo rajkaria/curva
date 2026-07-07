@@ -1,9 +1,18 @@
 /**
  * TIFO — the Pear app.
  *
- * Wires the tested TIFO packages to a real Autobase/Hyperswarm runtime and a
- * vanilla-DOM UI. Everything money- or consensus-related lives in the packages
- * (pure, fuzz-tested); this file is glue + rendering only.
+ * A thin DOM shell over @tifo/terrace-ui: every string on screen comes from a
+ * tested view-model, every piece of markup built from peer strings goes
+ * through the tested html helpers, and all money/consensus math lives in the
+ * pure packages. This file is wiring: node lifecycle, action handlers, and a
+ * versioned render loop.
+ *
+ * Render loop (S12): the 1s tick calls render() only when the view version
+ * moved or local UI state changed — zero Hyperbee scans, zero DOM work while
+ * idle. Renders are serialized by a mutex with a trailing re-run, and the DOM
+ * swap is deferred while the user is typing in an input (values are restored
+ * across swaps via stable ids), so background gossip can't wipe a half-typed
+ * message or stake.
  *
  * Demo/offline mode (default): settlement uses FakeWallet and the oracle uses a
  * bundled commentary transcript via FakeAsr — disclosed in the README; the
@@ -11,18 +20,19 @@
  * wallet + a downloaded QVAC model) swaps the adapters with no protocol change.
  * Pairing uses the spec-sanctioned paste-a-key flow (BlindPairing roadmap: S15).
  */
-import {
-  TerraceNode, signMessage,
-  readMarkets, readPools, readValidBets, readAttestationLog, readIdentities, readChat, isLocked,
-} from "@tifo/terrace-base";
+import { TerraceNode, signMessage } from "@tifo/terrace-base";
 import {
   deriveVault, randomVault, isValidMnemonic,
   computeDeltas, minTransfers, settlementManifest, settleMyDebts, FakeWallet,
 } from "@tifo/wdk-vault";
 import { matchResult } from "@tifo/market-catalogue";
-import { prefillAttestation, resolveMarket, FakeAsr } from "@tifo/crowd-oracle";
-import { computePayouts, impliedOdds, buildPools } from "@tifo/market-kernel";
-import { fallbackQuip, FakeTranslator, renderForViewer, suggestMarkets } from "@tifo/qvac-surfaces";
+import { prefillAttestation, FakeAsr } from "@tifo/crowd-oracle";
+import { computePayouts } from "@tifo/market-kernel";
+import { FakeTranslator, suggestMarkets } from "@tifo/qvac-surfaces";
+import {
+  terraceVm, marketVm, chatVm, gafferVm, settlementVm,
+  esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml,
+} from "@tifo/terrace-ui";
 import { FIXTURES, STATS_BUNDLE, DEMO_TRANSCRIPT } from "../../fixtures/wc2026.js";
 
 const DISPUTE_WINDOW_MS = 10 * 60_000;
@@ -47,13 +57,31 @@ document.getElementById("who-addr").textContent = vault.wallet.address.slice(0, 
 
 // ── Runtime state ─────────────────────────────────────────────────────────────
 let node = null;
-let role = "none"; // none | opener | joiner
+let role = "none"; // none | opener | joiner | joiner-active
 let screen = "home";
 let selectedMarket = null;
 let toastMsg = "";
 const wallet = new FakeWallet(vault.wallet.address, 1000n * 1_000_000n); // demo-funded
 
-function toast(m) { toastMsg = m; render(); setTimeout(() => { toastMsg = ""; render(); }, 2200); }
+/** The uiState every VM sees — assembled fresh per render pass. */
+function uiState() {
+  return {
+    now: Date.now(),
+    writable: node?.writable() ?? false,
+    role,
+    inviteKey: node?.key() ?? "",
+    writerKey: node?.localWriterKey() ?? "",
+    viewerId: vault.identity.idKey,
+    viewerLang: "en",
+    disputeWindowMs: DISPUTE_WINDOW_MS,
+  };
+}
+
+function toast(m) {
+  toastMsg = m;
+  markDirty();
+  setTimeout(() => { toastMsg = ""; markDirty(); }, 2200);
+}
 
 /** Single-flight guard for async button handlers: no double-spend double-clicks,
  *  and every failure surfaces as a toast instead of an unhandled rejection. */
@@ -75,6 +103,7 @@ async function emit(fields) {
   const unsigned = { v: 1, author: vault.identity.idKey, ts: Date.now(), ...fields };
   await node.append(signMessage(unsigned, vault.identity.privKey));
   await node.update();
+  scheduleRender(); // the version already moved — don't wait for the tick
   return true;
 }
 const emitHello = () => emit({ t: "hello", name: shortId(), walletAddr: vault.wallet.address });
@@ -95,7 +124,7 @@ async function openTerrace() {
   await emitHello();
   screen = "terrace";
   startPolling();
-  render();
+  markDirty();
 }
 async function joinTerrace(inviteKey) {
   const key = inviteKey.trim();
@@ -105,13 +134,62 @@ async function joinTerrace(inviteKey) {
   await node.joinSwarm();
   screen = "terrace";
   startPolling();
-  render();
+  markDirty();
 }
 async function authorizeWriter(writerKey) {
   const key = writerKey.trim();
   if (!HEX64.test(key)) return toast("That doesn't look like a writer key (64 hex chars)");
   await node.addWriter(key);
   toast("Authorized ✓");
+}
+
+// ── Render loop: versioned, serialized, focus-safe ───────────────────────────
+let viewVersion = -1;   // last rendered view version
+let stateDirty = true;  // local uiState changed since last render
+let rendering = false;  // mutex: a render pass is in flight
+let renderQueued = false; // trailing flag: re-run once the current pass ends
+let deferredForFocus = false; // at most one render parked behind a focused input
+
+/** Local state changed (navigation, toast, role) — render at next opportunity. */
+function markDirty() {
+  stateDirty = true;
+  scheduleRender();
+}
+
+function focusedAppInput() {
+  const el = document.activeElement;
+  return el && el.tagName === "INPUT" && app.contains(el) ? el : null;
+}
+
+/**
+ * The only entry point to render(). Serializes async renders (mutex +
+ * trailing re-run — two passes never interleave) and defers the DOM swap
+ * while an input inside #app has focus, resuming on blur.
+ */
+function scheduleRender() {
+  const focused = focusedAppInput();
+  if (focused) {
+    if (!deferredForFocus) {
+      deferredForFocus = true;
+      focused.addEventListener(
+        "blur",
+        () => { deferredForFocus = false; scheduleRender(); },
+        { once: true },
+      );
+    }
+    return;
+  }
+  if (rendering) { renderQueued = true; return; }
+  rendering = true;
+  (async () => {
+    try {
+      do { renderQueued = false; await render(); } while (renderQueued);
+    } catch (err) {
+      console.error("render failed", err);
+    } finally {
+      rendering = false;
+    }
+  })();
 }
 
 let polling = null;
@@ -123,9 +201,12 @@ function startPolling() {
     if (role === "joiner" && node.writable()) {
       // Became writable → announce identity once.
       role = "joiner-active";
+      stateDirty = true;
       await emitHello();
     }
-    if (screen === "terrace" || screen === "market") render();
+    // The whole point of S12: zero render work while nothing changed.
+    if (node.version() === viewVersion && !stateDirty) return;
+    scheduleRender();
   }, 1000);
 }
 globalThis.Pear?.teardown?.(async () => { clearInterval(polling); await node?.close(); });
@@ -136,37 +217,39 @@ async function openMarketFromFixture(fx) {
   const ok = await emit({ t: "market", marketId: marketId(), kind: spec.kind, params: spec.params, cutoffAt: Date.now() + 90 * 60_000, feeBps: 0 });
   if (ok) toast("Market opened");
 }
-async function placeBet(m, outcomeKey, usdt) {
-  if (!Number.isFinite(usdt) || usdt <= 0 || usdt > 1e9) return toast("Enter a stake above 0");
-  const amount = BigInt(Math.round(usdt * 1_000_000));
-  const ok = await emit({ t: "bet", marketId: m.marketId, outcomeKey, amount, nonce: "bet-" + uid() });
-  if (ok) toast(`Bet ${usdt} USDt on ${outcomeKey}`);
+async function placeBet(vm, outcomeKey, usdtAmount) {
+  if (!Number.isFinite(usdtAmount) || usdtAmount <= 0 || usdtAmount > 1e9) return toast("Enter a stake above 0");
+  const amount = BigInt(Math.round(usdtAmount * 1_000_000));
+  const ok = await emit({ t: "bet", marketId: vm.marketId, outcomeKey, amount, nonce: "bet-" + uid() });
+  if (ok) toast(`Bet ${usdtAmount} USDt on ${outcomeKey}`);
 }
-async function lockMarket(m) { if (await emit({ t: "lock", marketId: m.marketId })) toast("Locked"); }
+async function lockMarket(vm) { if (await emit({ t: "lock", marketId: vm.marketId })) toast("Locked"); }
 
-async function attestFromAsr(m) {
+async function attestFromAsr(vm) {
   const asr = new FakeAsr(DEMO_TRANSCRIPT); // offline demo path
   const transcript = await asr.transcribe();
-  const meta = m.params.meta ?? {};
-  const pre = prefillAttestation(transcript, { outcomes: m.params.outcomes, homeTeam: meta.homeTeam ?? "HOME", awayTeam: meta.awayTeam ?? "AWAY" });
+  const pre = prefillAttestation(transcript, {
+    outcomes: vm.outcomes.map((o) => o.key),
+    homeTeam: vm.meta.homeTeam ?? "HOME",
+    awayTeam: vm.meta.awayTeam ?? "AWAY",
+  });
   if (!pre) return toast("No score heard — attest manually");
-  const ok = await emit({ t: "attest", marketId: m.marketId, outcomeKey: pre.outcomeKey, evidence: { asrScore: pre.asrScore, confidence: pre.confidence } });
+  const ok = await emit({ t: "attest", marketId: vm.marketId, outcomeKey: pre.outcomeKey, evidence: { asrScore: pre.asrScore, confidence: pre.confidence } });
   if (ok) toast(`Attested ${pre.asrScore}`);
 }
 
-async function settle(m, outcomeKey) {
-  const kv = node.view();
-  const bets = (await readValidBets(kv, m.marketId)).map((b) => ({ betId: b.betId, bettorId: b.bettorId, outcomeKey: b.outcomeKey, stake: b.stake }));
-  const manifest = computePayouts({ bets, resolution: { kind: "outcome", outcomeKey }, feeBps: m.feeBps });
-  const stakes = new Map();
-  for (const b of bets) stakes.set(b.bettorId, (stakes.get(b.bettorId) ?? 0n) + b.stake);
-  const identities = await readIdentities(kv);
-  const walletOf = (idKey) => identities.get(idKey)?.walletAddr ?? idKey;
+async function settle(vm) {
+  const s = await settlementVm(node.view(), vm.marketId);
+  const manifest = computePayouts({
+    bets: s.bets,
+    resolution: { kind: "outcome", outcomeKey: vm.resolution.outcomeKey },
+    feeBps: vm.feeBps,
+  });
   const transfers = settlementManifest(
-    minTransfers(computeDeltas(manifest, stakes)).map((t) => ({ from: walletOf(t.from), to: walletOf(t.to), amount: t.amount })),
+    minTransfers(computeDeltas(manifest, s.stakes)).map((t) => ({ from: s.walletOf(t.from), to: s.walletOf(t.to), amount: t.amount })),
   );
   const receipts = await settleMyDebts(transfers, wallet); // only my own debts
-  for (const r of receipts) await emit({ t: "receipt", marketId: m.marketId, manifestLine: r.line, txid: r.txid });
+  for (const r of receipts) await emit({ t: "receipt", marketId: vm.marketId, manifestLine: r.line, txid: r.txid });
   toast(receipts.length ? `Paid ${receipts.length} transfer(s)` : "Nothing to pay");
 }
 
@@ -175,30 +258,44 @@ async function sendChat(text) {
   await emit({ t: "chat", text, lang: "en" });
 }
 
-// ── Rendering ────────────────────────────────────────────────────────────────
+// ── Rendering: VMs → DOM ─────────────────────────────────────────────────────
 function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
-function pct(n) { return Math.round(n * 100); }
 
-/** Escape for BOTH text and attribute contexts. Every peer-derived string —
- *  market titles, outcome keys, chat, quips — goes through this before
- *  touching innerHTML: any writer can sign arbitrary strings into the log. */
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+// Input values survive the swap: snapshot by stable id, restore after —
+// but only within the same screen+market (never leak a stake across markets).
+const viewKey = () => `${screen}:${selectedMarket}`;
+let lastViewKey = "";
+function snapshotInputs() {
+  const snap = new Map();
+  for (const el of app.querySelectorAll("input[id]")) snap.set(el.id, el.value);
+  return snap;
 }
-/** Peer strings never become CSS class names — only this allowlist does. */
-const SAFE_CLASS = new Set(["HOME", "AWAY", "DRAW", "YES", "NO", "OVER", "UNDER"]);
-const outcomeClass = (k) => (SAFE_CLASS.has(k) ? k : "");
-const barClass = (k) => (SAFE_CLASS.has(k) ? "b" + k : "");
+function restoreInputs(snap) {
+  for (const [id, value] of snap) {
+    const el = app.querySelector(`#${CSS.escape(id)}`);
+    if (el) el.value = value;
+  }
+}
 
 async function render() {
-  app.replaceChildren();
-  if (toastMsg) app.appendChild(h(`<div class="toast">${esc(toastMsg)}</div>`));
-  if (screen === "home") return renderHome();
-  if (screen === "terrace") return renderTerrace();
-  if (screen === "market") return renderMarket();
+  viewVersion = node?.version() ?? -1;
+  stateDirty = false;
+  const snap = lastViewKey === viewKey() ? snapshotInputs() : null;
+
+  // Build the whole screen off-DOM, swap once: no partial states, and the
+  // focus guard has a single well-defined swap point.
+  const stage = document.createDocumentFragment();
+  if (toastMsg) stage.appendChild(h(`<div class="toast">${esc(toastMsg)}</div>`));
+  if (screen === "home") renderHome(stage);
+  else if (screen === "terrace") await renderTerrace(stage);
+  else if (screen === "market") await renderMarket(stage);
+
+  app.replaceChildren(stage);
+  lastViewKey = viewKey();
+  if (snap) restoreInputs(snap);
 }
 
-function renderHome() {
+function renderHome(stage) {
   const card = h(`<div class="card stack">
     <h2>Start</h2>
     <button id="open">Open a terrace</button>
@@ -207,19 +304,23 @@ function renderHome() {
   </div>`);
   busy(card.querySelector("#open"), openTerrace);
   busy(card.querySelector("#join"), () => joinTerrace(card.querySelector("#invite").value));
-  app.appendChild(card);
+  stage.appendChild(card);
 }
 
-async function renderTerrace() {
+async function renderTerrace(stage) {
+  const kv = node.view();
+  const state = uiState();
+  const t = await terraceVm(kv, state);
+
   const invite = h(`<div class="card stack">
     <h2>This terrace</h2>
-    <div class="row"><span class="pill">${role}</span><span class="pill">${node.writable() ? "writer" : "read-only"}</span></div>
-    <div><div class="muted">Invite key (share to let mates join)</div><div class="mono">${node.key()}</div></div>
-    <div><div class="muted">Your writer key (send to the host to be authorized)</div><div class="mono">${node.localWriterKey()}</div></div>
+    <div class="row"><span class="pill">${esc(t.role)}</span><span class="pill">${t.writable ? "writer" : "read-only"}</span></div>
+    <div><div class="muted">Invite key (share to let mates join)</div><div class="mono">${esc(t.invite)}</div></div>
+    <div><div class="muted">Your writer key (send to the host to be authorized)</div><div class="mono">${esc(t.writerKey)}</div></div>
     <div class="row"><input id="authk" placeholder="authorize a mate's writer key" /><button class="ghost" id="auth">Authorize</button></div>
   </div>`);
   busy(invite.querySelector("#auth"), () => authorizeWriter(invite.querySelector("#authk").value));
-  app.appendChild(invite);
+  stage.appendChild(invite);
 
   // New market from a bundled fixture + hunch suggestions.
   const opener = h(`<div class="card stack"><h2>Open a market</h2></div>`);
@@ -230,106 +331,70 @@ async function renderTerrace() {
     const s = suggestMarkets(fx.home, fx.away, STATS_BUNDLE).slice(1, 2)[0];
     if (s) opener.appendChild(h(`<div class="muted">↳ ${esc(s.reason)}</div>`));
   }
-  app.appendChild(opener);
+  stage.appendChild(opener);
 
   // Live markets.
-  const kv = node.view();
-  const markets = await readMarkets(kv);
-  const list = h(`<div class="card stack"><h2>Markets (${markets.length})</h2></div>`);
-  for (const m of markets) {
-    const btn = h(`<button class="ghost" style="text-align:left">${esc(m.params.title)}</button>`);
-    btn.onclick = () => { selectedMarket = m.marketId; screen = "market"; render(); };
+  const list = h(`<div class="card stack"><h2>Markets (${t.markets.length})</h2></div>`);
+  for (const item of t.markets) {
+    const btn = h(`<button class="ghost" style="text-align:left">${esc(item.title)} <span class="muted">· ${esc(item.closesLabel)}</span></button>`);
+    btn.onclick = () => { selectedMarket = item.marketId; screen = "market"; markDirty(); };
     list.appendChild(btn);
   }
-  if (!markets.length) list.appendChild(h(`<p class="muted">No markets yet.</p>`));
-  app.appendChild(list);
+  if (!t.markets.length) list.appendChild(h(`<p class="muted">No markets yet.</p>`));
+  stage.appendChild(list);
 
-  renderChat(kv);
+  await renderChatCard(stage, kv, state);
 }
 
-async function renderMarket() {
+async function renderMarket(stage) {
   const kv = node.view();
-  const m = (await readMarkets(kv)).find((x) => x.marketId === selectedMarket);
-  if (!m) { screen = "terrace"; return render(); }
-
-  const gross = await readPools(kv, m.marketId);
-  const pools = buildPools(await betList(kv, m), m.feeBps);
-  const odds = impliedOdds(pools);
-  const locked = await isLocked(kv, m.marketId);
+  const state = uiState();
+  const vm = await marketVm(kv, state, selectedMarket);
+  if (!vm) { screen = "terrace"; return renderTerrace(stage); }
 
   const back = h(`<button class="ghost" id="back">← terrace</button>`);
-  back.onclick = () => { screen = "terrace"; render(); };
-  app.appendChild(back);
+  back.onclick = () => { screen = "terrace"; markDirty(); };
+  stage.appendChild(back);
 
-  const head = h(`<div class="card stack">
-    <h2>${esc(m.params.title)}</h2>
-    <div class="row"><span class="pill">${esc(m.kind)}</span><span class="pill">${locked ? "LOCKED" : "OPEN"}</span><span class="pill">fee ${m.feeBps}bps</span></div>
-  </div>`);
-  app.appendChild(head);
+  stage.appendChild(h(marketHeadHtml(vm)));
 
   const oddsCard = h(`<div class="card stack"><h2>Pool odds</h2></div>`);
-  for (const key of m.params.outcomes) {
-    const o = odds[key] ?? { probability: 0, decimalOdds: null };
-    const g = (gross[key] ?? 0n);
-    oddsCard.appendChild(h(`<div>
-      <div class="row"><span class="${outcomeClass(key)}">${esc(key)}</span><span class="muted">${(Number(g)/1e6).toFixed(0)} USDt</span><span>${o.decimalOdds ? "×"+o.decimalOdds.toFixed(2) : "—"}</span></div>
-      <div class="bar"><span class="${barClass(key)}" style="width:${pct(o.probability)}%"></span></div>
-    </div>`));
-    if (!locked && node.writable()) {
-      const bet = h(`<div class="row tight"><input type="number" min="1" step="1" value="10" /><button>Bet ${esc(key)}</button></div>`);
-      busy(bet.querySelector("button"), () => placeBet(m, key, Number(bet.querySelector("input").value)));
+  vm.outcomes.forEach((o, i) => {
+    oddsCard.appendChild(h(outcomeRowHtml(o)));
+    if (vm.canBet) {
+      // Index-keyed id: stable across renders, never built from peer strings.
+      const bet = h(`<div class="row tight"><input id="stake-${i}" type="number" min="1" step="1" value="10" /><button>Bet ${esc(o.key)}</button></div>`);
+      busy(bet.querySelector("button"), () => placeBet(vm, o.key, Number(bet.querySelector("input").value)));
       oddsCard.appendChild(bet);
     }
-  }
-  app.appendChild(oddsCard);
+  });
+  stage.appendChild(oddsCard);
 
-  // Resolution + settlement.
-  const events = await readAttestationLog(kv, m.marketId);
-  const stakes = new Map();
-  for (const b of await readValidBets(kv, m.marketId)) stakes.set(b.bettorId, (stakes.get(b.bettorId) ?? 0n) + b.stake);
-  const res = resolveMarket({ events, stakeByWriter: stakes, now: Date.now(), disputeWindowMs: DISPUTE_WINDOW_MS });
-
+  const res = vm.resolution;
   const resCard = h(`<div class="card stack">
     <h2>Resolution</h2>
-    <div>Status: <b>${esc(res.status)}</b> ${res.outcomeKey ? '<span class="' + outcomeClass(res.outcomeKey) + '">' + esc(res.outcomeKey) + "</span>" : ""}</div>
+    <div>Status: <b>${esc(res.status)}</b> ${res.outcomeKey ? '<span class="' + outcomeClass(res.outcomeKey) + '">' + esc(res.outcomeKey) + "</span>" : ""}${
+      vm.finalizesLabel ? ` <span class="muted">${esc(vm.finalizesLabel)}</span>` : ""
+    }</div>
   </div>`);
-  if (node.writable()) {
-    if (!locked) { const b = h(`<button class="ghost">Lock (whistle)</button>`); busy(b, () => lockMarket(m)); resCard.appendChild(b); }
-    const a = h(`<button class="ghost">🎙 Attest from ASR</button>`); busy(a, () => attestFromAsr(m)); resCard.appendChild(a);
-    if (res.status === "resolved") { const s = h(`<button>Settle in USDt</button>`); busy(s, () => settle(m, res.outcomeKey)); resCard.appendChild(s); }
-  }
-  // Everyone's-square checklist.
-  const receipts = await import("@tifo/terrace-base").then((mod) => mod.readReceipts(kv, m.marketId));
-  if (receipts.length) resCard.appendChild(h(`<div class="square">Receipts: ${receipts.length} line(s) settled ✓</div>`));
-  app.appendChild(resCard);
+  if (vm.canLock) { const b = h(`<button class="ghost">Lock (whistle)</button>`); busy(b, () => lockMarket(vm)); resCard.appendChild(b); }
+  if (state.writable) { const a = h(`<button class="ghost">🎙 Attest from ASR</button>`); busy(a, () => attestFromAsr(vm)); resCard.appendChild(a); }
+  if (vm.canSettle) { const s = h(`<button>Settle in USDt</button>`); busy(s, () => settle(vm)); resCard.appendChild(s); }
+  if (vm.receipts) resCard.appendChild(h(`<div class="square">Receipts: ${vm.receipts} line(s) settled ✓</div>`));
+  stage.appendChild(resCard);
 
-  renderChat(kv);
+  await renderChatCard(stage, kv, state);
 }
 
-async function betList(kv, m) {
-  return (await readValidBets(kv, m.marketId)).map((b) => ({ betId: b.betId, bettorId: b.bettorId, outcomeKey: b.outcomeKey, stake: b.stake }));
-}
-
-async function renderChat(kv) {
-  const gaffer = await gafferQuipFromView(kv);
-  const card = h(`<div class="card stack"><h2>Terrace</h2><div class="gaffer">🎩 ${esc(gaffer)}</div><div class="chat" id="chat"></div>
+async function renderChatCard(stage, kv, state) {
+  const quip = await gafferVm(kv, selectedMarket);
+  const lines = await chatVm(kv, state, translator);
+  const card = h(`<div class="card stack"><h2>Terrace</h2><div class="gaffer">🎩 ${esc(quip)}</div><div class="chat" id="chat"></div>
     <div class="row"><input id="msg" placeholder="say something…" /><button id="send">Send</button></div></div>`);
   const chat = card.querySelector("#chat");
-  for (const line of await readChat(kv)) {
-    const shown = await renderForViewer({ text: line.text, lang: line.lang }, "en", translator);
-    chat.appendChild(h(`<div class="line"><span class="muted">${esc(line.author.slice(2, 6))}</span> ${esc(shown)}</div>`));
-  }
+  for (const line of lines) chat.appendChild(h(chatLineHtml(line)));
   busy(card.querySelector("#send"), async () => { await sendChat(card.querySelector("#msg").value); card.querySelector("#msg").value = ""; });
-  app.appendChild(card);
+  stage.appendChild(card);
 }
 
-async function gafferQuipFromView(kv) {
-  const markets = await readMarkets(kv);
-  const m = markets.find((x) => x.marketId === selectedMarket) ?? markets[0];
-  if (!m) return "Open a market and I'll have something to say.";
-  const pools = buildPools(await betList(kv, m), m.feeBps);
-  const odds = impliedOdds(pools);
-  return fallbackQuip({ title: m.params.title, outcomes: m.params.outcomes.map((k) => ({ key: k, pct: pct(odds[k]?.probability ?? 0) })) });
-}
-
-render();
+scheduleRender();

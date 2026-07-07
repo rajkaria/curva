@@ -108,10 +108,35 @@ From the 2026-07-07 product audit ([IMPROVEMENTS.md](./IMPROVEMENTS.md), plan:
   (no same-ms collisions); stable per-terrace storage dirs (writer key survives
   restarts, no per-launch store leak).
 
-Roadmap for S12–S16 (render architecture/tests, UX quick wins, feature wiring,
-pairing + browser demo, trust hardening): [IMPROVEMENTS.md](./IMPROVEMENTS.md).
+## S12 — render architecture & tests — DONE
+Gate: new `@tifo/terrace-ui` suite green (VMs + formatters + jsdom escaping);
+check/build/demo green — **PASSED** (194 tests). Addresses audit finding B2
+(1s re-render wiped in-progress input; re-entrant async `render()` produced
+duplicate/misordered cards). Plan: [plans/s12-render.md](./plans/s12-render.md).
+- **New package `@tifo/terrace-ui`:** the app's tested render layer. `vm.ts` —
+  `(kv, uiState) → plain data` view-models (terrace / market / chat / gaffer /
+  settlement), carrying peer strings RAW and routing every money/odds number
+  through market-kernel + crowd-oracle. `format.ts` — exact display strings
+  (`usdt` never rounds; property-tested inverse `parseUsdt`; `countdown`,
+  `shortKey`). `html.ts` — the SINGLE place peer strings become markup: `esc`
+  for text+attr, an outcome-class allowlist (no class injection), bar widths
+  from numeric `pct` only. 32 new tests incl. a jsdom suite that instantiates
+  the helpers' output and proves hostile payloads stay inert.
+- **`version()` skip signal:** added to both `MemoryKV` (mutation counter) and
+  the Autobase runtime (Hyperbee core length). The render loop compares it and
+  does ZERO Hyperbee scans / DOM work while nothing has changed.
+- **`app.js` → thin DOM shell:** consumes the VMs + html helpers only (no ad-hoc
+  money math, no raw `innerHTML` of peer strings). Versioned render loop with a
+  serialize-and-defer-on-focus scheduler: renders are single-flight with a
+  trailing re-run, and the DOM swap is parked while an input has focus (values
+  snapshotted/restored by stable id) so background gossip can't wipe a
+  half-typed stake or message.
+- **Housekeeping:** stopped tracking `*.tsbuildinfo` (gitignored).
+
+Roadmap for S13–S16 (UX quick wins, feature wiring, pairing + browser demo,
+trust hardening): [IMPROVEMENTS.md](./IMPROVEMENTS.md).
 
 ---
-**Totals:** 10 packages + app, 160 tests (property + fuzz + e2e), `npm run check`
-+ `npm run build` + `npm run demo` all green. Remaining human-only items are listed
-in [SUBMISSION.md](./SUBMISSION.md).
+**Totals:** 11 packages + app, 194 tests (property + fuzz + e2e + jsdom),
+`npm run check` + `npm run build` + `npm run demo` all green. Remaining
+human-only items are listed in [SUBMISSION.md](./SUBMISSION.md).

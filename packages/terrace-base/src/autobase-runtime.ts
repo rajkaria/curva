@@ -117,6 +117,15 @@ export class TerraceNode {
     return new HyperbeeKV(this.base.view);
   }
 
+  /**
+   * The view's version (Hyperbee's core length). Strictly increases whenever
+   * apply has written anything, so a render loop can compare versions and do
+   * ZERO work — no Hyperbee scans, no DOM — while nothing has changed.
+   */
+  version(): number {
+    return Number(this.base.view?.version ?? 0);
+  }
+
   writable(): boolean {
     return this.base.writable;
   }

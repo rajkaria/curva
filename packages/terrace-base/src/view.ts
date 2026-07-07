@@ -22,6 +22,7 @@ export function prefix(p: string): { gte: string; lt: string } {
 
 export class MemoryKV implements KV {
   private readonly map = new Map<string, unknown>();
+  private rev = 0;
 
   async get(key: string): Promise<unknown | undefined> {
     return this.map.get(key);
@@ -29,10 +30,21 @@ export class MemoryKV implements KV {
 
   async put(key: string, value: unknown): Promise<void> {
     this.map.set(key, value);
+    this.rev++;
   }
 
   async del(key: string): Promise<void> {
     this.map.delete(key);
+    this.rev++;
+  }
+
+  /**
+   * Mutation counter — the in-memory analogue of Hyperbee's `version` (its
+   * core length). A renderer can skip work whenever this hasn't moved; reads
+   * never bump it. See TerraceNode.version() for the production twin.
+   */
+  version(): number {
+    return this.rev;
   }
 
   async *list(range?: { gte?: string; lt?: string }): AsyncIterable<{ key: string; value: unknown }> {

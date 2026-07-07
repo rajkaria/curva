@@ -26,6 +26,9 @@
       "path": "packages/steward-escrow"
     },
     {
+      "path": "packages/terrace-ui"
+    },
+    {
       "path": "packages/e2e"
     }
   ]
