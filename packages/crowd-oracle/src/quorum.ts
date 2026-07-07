@@ -41,15 +41,45 @@ export interface AttestationEvent {
   readonly ts: number;
 }
 
-/** The outcome that currently meets the dual quorum, or null. */
-export function quorumOutcome(
+/** Where one outcome stands against the dual-⅔ thresholds, right now. */
+export interface OutcomeTally {
+  readonly outcomeKey: string;
+  /** Distinct writers currently attesting this outcome. */
+  readonly writers: number;
+  /** Their summed bet stake (micros). */
+  readonly stake: bigint;
+  /** ≥minWriters AND ≥writerRatio of all attesting writers. */
+  readonly writersOk: boolean;
+  /** ≥stakeRatio of all attesting stake. */
+  readonly stakeOk: boolean;
+  /** Both thresholds met — this outcome would resolve. */
+  readonly meetsQuorum: boolean;
+}
+
+/** The full standings of an attestation tally against the quorum thresholds. */
+export interface TallyBreakdown {
+  readonly totalWriters: number;
+  readonly totalStake: bigint;
+  readonly minWriters: number;
+  readonly stakeRatio: readonly [number, number];
+  readonly writerRatio: readonly [number, number];
+  /** One row per attested outcome, sorted by key (deterministic). */
+  readonly outcomes: readonly OutcomeTally[];
+  /** The outcome that meets the dual quorum, or null. */
+  readonly quorumOutcome: string | null;
+}
+
+/**
+ * Score a tally against the dual thresholds, per outcome. This is the single
+ * place the ⅔/⅔/minWriters rule is evaluated — {@link quorumOutcome} and the
+ * UI's progress card both read it, so the picture the crowd sees can never
+ * drift from the rule that actually resolves the money.
+ */
+export function tallyBreakdown(
   tally: ReadonlyMap<string, Attestation>,
   stakeByWriter: ReadonlyMap<string, bigint>,
-  config: QuorumConfig,
-): string | null {
-  const totalWriters = tally.size;
-  if (totalWriters === 0) return null;
-
+  config: QuorumConfig = DEFAULT_QUORUM,
+): TallyBreakdown {
   const writersFor = new Map<string, number>();
   const stakeFor = new Map<string, bigint>();
   let totalStake = 0n;
@@ -60,17 +90,39 @@ export function quorumOutcome(
     totalStake += stake;
   }
 
+  const totalWriters = tally.size;
   const [wNum, wDen] = config.writerRatio;
   const [sNum, sDen] = config.stakeRatio;
-  // Deterministic iteration for a stable answer.
-  for (const outcome of [...writersFor.keys()].sort()) {
-    const w = writersFor.get(outcome)!;
-    const s = stakeFor.get(outcome) ?? 0n;
-    const writersOk = w >= config.minWriters && w * wDen >= wNum * totalWriters;
-    const stakeOk = s * BigInt(sDen) >= BigInt(sNum) * totalStake;
-    if (writersOk && stakeOk) return outcome;
-  }
-  return null;
+  let quorum: string | null = null;
+  const outcomes: OutcomeTally[] = [...writersFor.keys()].sort().map((outcome) => {
+    const writers = writersFor.get(outcome)!;
+    const stake = stakeFor.get(outcome) ?? 0n;
+    const writersOk = writers >= config.minWriters && writers * wDen >= wNum * totalWriters;
+    const stakeOk = stake * BigInt(sDen) >= BigInt(sNum) * totalStake;
+    const meetsQuorum = writersOk && stakeOk;
+    if (meetsQuorum && quorum === null) quorum = outcome;
+    return { outcomeKey: outcome, writers, stake, writersOk, stakeOk, meetsQuorum };
+  });
+
+  return {
+    totalWriters,
+    totalStake,
+    minWriters: config.minWriters,
+    stakeRatio: config.stakeRatio,
+    writerRatio: config.writerRatio,
+    outcomes,
+    quorumOutcome: quorum,
+  };
+}
+
+/** The outcome that currently meets the dual quorum, or null. */
+export function quorumOutcome(
+  tally: ReadonlyMap<string, Attestation>,
+  stakeByWriter: ReadonlyMap<string, bigint>,
+  config: QuorumConfig,
+): string | null {
+  if (tally.size === 0) return null;
+  return tallyBreakdown(tally, stakeByWriter, config).quorumOutcome;
 }
 
 export type Resolution =

@@ -38,7 +38,7 @@ removes all three because **a parimutuel pool is a CRDT**:
 
 ```bash
 npm install
-npm run check   # typecheck + lint + 141 tests (property + fuzz + e2e)
+npm run check   # typecheck + lint + 217 tests (property + fuzz + e2e + jsdom); Node ≥20.19/22.12/24
 npm run demo    # the whole pipeline, headless, in one command
 ```
 

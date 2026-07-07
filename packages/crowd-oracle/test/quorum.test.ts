@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   quorumOutcome,
   resolveMarket,
+  tallyBreakdown,
   DEFAULT_QUORUM,
   type Attestation,
   type AttestationEvent,
@@ -37,6 +38,43 @@ describe("quorumOutcome — dual ⅔ threshold", () => {
   test("a sock-puppet writer swarm cannot force an outcome the stake rejects (stake threshold)", () => {
     const stake = new Map([["s1", 0n], ["s2", 0n], ["s3", 0n], ["s4", 0n], ["whale", 1000n * USDT]]);
     expect(quorumOutcome(tally([["s1", "AWAY"], ["s2", "AWAY"], ["s3", "AWAY"], ["s4", "AWAY"], ["whale", "HOME"]]), stake, DEFAULT_QUORUM)).toBeNull();
+  });
+});
+
+describe("tallyBreakdown — the standings the UI shows, from the resolver's own rule", () => {
+  test("agrees with quorumOutcome and exposes per-outcome writers/stake", () => {
+    const stake = new Map([["a", 30n * USDT], ["b", 30n * USDT], ["c", 30n * USDT], ["d", 10n * USDT]]);
+    const b = tallyBreakdown(tally([["a", "HOME"], ["b", "HOME"], ["c", "HOME"], ["d", "AWAY"]]), stake);
+    expect(b.quorumOutcome).toBe("HOME");
+    expect(b.totalWriters).toBe(4);
+    expect(b.totalStake).toBe(100n * USDT);
+    const home = b.outcomes.find((o) => o.outcomeKey === "HOME")!;
+    expect(home).toMatchObject({ writers: 3, stake: 90n * USDT, writersOk: true, stakeOk: true, meetsQuorum: true });
+    const away = b.outcomes.find((o) => o.outcomeKey === "AWAY")!;
+    expect(away).toMatchObject({ writers: 1, meetsQuorum: false });
+  });
+
+  test("whale-only shortfall: ¾ stake but too few writers → stakeOk, not writersOk", () => {
+    const stake = new Map([["whale", 1000n * USDT], ["a", 1n * USDT], ["b", 1n * USDT], ["c", 1n * USDT]]);
+    const b = tallyBreakdown(tally([["whale", "AWAY"], ["a", "HOME"], ["b", "HOME"], ["c", "HOME"]]), stake);
+    expect(b.quorumOutcome).toBeNull();
+    const away = b.outcomes.find((o) => o.outcomeKey === "AWAY")!;
+    expect(away).toMatchObject({ writers: 1, writersOk: false, stakeOk: true, meetsQuorum: false });
+    const home = b.outcomes.find((o) => o.outcomeKey === "HOME")!;
+    expect(home).toMatchObject({ writers: 3, writersOk: true, stakeOk: false, meetsQuorum: false });
+  });
+
+  test("sock-puppet-only shortfall: many writers but no stake → writersOk, not stakeOk", () => {
+    const stake = new Map([["s1", 0n], ["s2", 0n], ["s3", 0n], ["s4", 0n], ["whale", 1000n * USDT]]);
+    const b = tallyBreakdown(tally([["s1", "AWAY"], ["s2", "AWAY"], ["s3", "AWAY"], ["s4", "AWAY"], ["whale", "HOME"]]), stake);
+    expect(b.quorumOutcome).toBeNull();
+    const away = b.outcomes.find((o) => o.outcomeKey === "AWAY")!;
+    expect(away).toMatchObject({ writers: 4, writersOk: true, stakeOk: false, meetsQuorum: false });
+  });
+
+  test("empty tally → nothing", () => {
+    const b = tallyBreakdown(new Map(), new Map());
+    expect(b).toMatchObject({ totalWriters: 0, totalStake: 0n, quorumOutcome: null, outcomes: [] });
   });
 });
 

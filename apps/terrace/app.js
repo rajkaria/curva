@@ -12,12 +12,14 @@
  * idle. Renders are serialized by a mutex with a trailing re-run, and the DOM
  * swap is deferred while the user is typing in an input (values are restored
  * across swaps via stable ids), so background gossip can't wipe a half-typed
- * message or stake.
+ * message or stake. A separate 1s ticker updates only the countdown text nodes
+ * and the header (peer count / balance) — no full re-render, so live clocks and
+ * presence never wipe an in-progress input (S13).
  *
  * Demo/offline mode (default): settlement uses FakeWallet and the oracle uses a
- * bundled commentary transcript via FakeAsr — disclosed in the README; the
- * in-UI banner ships with S13 (docs/plans/s13-ux.md). Real mode (a funded WDK
- * wallet + a downloaded QVAC model) swaps the adapters with no protocol change.
+ * bundled commentary transcript via FakeAsr — now labelled in-UI by the demo
+ * banner (S13). Real mode (a funded WDK wallet + a downloaded QVAC model) swaps
+ * the adapters with no protocol change; the banner disappears automatically.
  * Pairing uses the spec-sanctioned paste-a-key flow (BlindPairing roadmap: S15).
  */
 import { TerraceNode, signMessage } from "@tifo/terrace-base";
@@ -31,7 +33,10 @@ import { computePayouts } from "@tifo/market-kernel";
 import { FakeTranslator, suggestMarkets } from "@tifo/qvac-surfaces";
 import {
   terraceVm, marketVm, chatVm, gafferVm, settlementVm,
-  esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml,
+  positionVm, previewPayout, pnlVm, tallyVm, headerVm,
+  LANGS, countdown, usdt,
+  esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml, cdSpanHtml,
+  demoBannerHtml, headerWidgetsHtml, positionHtml, previewLineHtml, pnlHtml, tallyHtml,
 } from "@tifo/terrace-ui";
 import { FIXTURES, STATS_BUNDLE, DEMO_TRANSCRIPT } from "../../fixtures/wc2026.js";
 
@@ -41,6 +46,12 @@ const DISPUTE_WINDOW_MS = 10 * 60_000;
 const storageBase = globalThis.Pear?.config?.storage ?? "./store";
 const translator = new FakeTranslator();
 const app = document.getElementById("app");
+const headWidgets = document.getElementById("head-widgets");
+const banner = document.getElementById("banner");
+
+// Nation flags for the bundled fixtures — our own constants (never peer data).
+const TEAM_EMOJI = { France: "🇫🇷", Brazil: "🇧🇷", Argentina: "🇦🇷", England: "🇬🇧" };
+const teamEmoji = (name) => TEAM_EMOJI[name] ?? "⚽";
 
 // ── Vault (persisted seed) ───────────────────────────────────────────────────
 function loadVault() {
@@ -52,8 +63,6 @@ function loadVault() {
   return { mnemonic, vault: deriveVault(mnemonic) };
 }
 const { vault } = loadVault();
-document.getElementById("who-name").textContent = "you";
-document.getElementById("who-addr").textContent = vault.wallet.address.slice(0, 12) + "…";
 
 // ── Runtime state ─────────────────────────────────────────────────────────────
 let node = null;
@@ -62,6 +71,15 @@ let screen = "home";
 let selectedMarket = null;
 let toastMsg = "";
 const wallet = new FakeWallet(vault.wallet.address, 1000n * 1_000_000n); // demo-funded
+// Demo mode is *derived*, not asserted: the banner shows iff the fakes are live.
+const demoMode = wallet instanceof FakeWallet;
+
+const shortId = () => "fan-" + vault.identity.idKey.slice(2, 6);
+// Local, non-replicated UI prefs (name + chat language), persisted.
+let displayName = localStorage.getItem("tifo.name") || shortId();
+localStorage.setItem("tifo.name", displayName);
+let lang = localStorage.getItem("tifo.lang") || "en";
+let chatPinnedToBottom = true; // autoscroll unless the reader has scrolled up
 
 /** The uiState every VM sees — assembled fresh per render pass. */
 function uiState() {
@@ -72,7 +90,7 @@ function uiState() {
     inviteKey: node?.key() ?? "",
     writerKey: node?.localWriterKey() ?? "",
     viewerId: vault.identity.idKey,
-    viewerLang: "en",
+    viewerLang: lang,
     disputeWindowMs: DISPUTE_WINDOW_MS,
   };
 }
@@ -81,6 +99,15 @@ function toast(m) {
   toastMsg = m;
   markDirty();
   setTimeout(() => { toastMsg = ""; markDirty(); }, 2200);
+}
+
+/** A one-shot full-screen flourish — the terrace is square. */
+function celebrate(emoji = "🎉") {
+  const el = document.createElement("div");
+  el.className = "celebrate";
+  el.textContent = emoji;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1600);
 }
 
 /** Single-flight guard for async button handlers: no double-spend double-clicks,
@@ -106,13 +133,27 @@ async function emit(fields) {
   scheduleRender(); // the version already moved — don't wait for the tick
   return true;
 }
-const emitHello = () => emit({ t: "hello", name: shortId(), walletAddr: vault.wallet.address });
-const shortId = () => "fan-" + vault.identity.idKey.slice(2, 6);
+const emitHello = () => emit({ t: "hello", name: displayName, walletAddr: vault.wallet.address });
 // Ids carry an author suffix + local counter: two peers acting in the same
 // millisecond must never collide (first-wins would silently eat one of them).
 let uidCounter = 0;
 const uid = () => Date.now().toString(36) + "-" + vault.identity.idKey.slice(2, 8) + "-" + (uidCounter++).toString(36);
 const marketId = () => "m-" + uid();
+
+// ── Identity prefs ────────────────────────────────────────────────────────────
+async function setName(n) {
+  const name = n.trim() || shortId();
+  displayName = name;
+  localStorage.setItem("tifo.name", name);
+  await updateHeader();
+  if (node?.writable()) await emitHello(); // re-announce so peers see the new name
+  toast("Name set");
+}
+function setLang(l) {
+  lang = l;
+  localStorage.setItem("tifo.lang", l);
+  markDirty(); // re-render translates every line into the new language
+}
 
 // ── Terrace lifecycle ─────────────────────────────────────────────────────────
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -192,11 +233,39 @@ function scheduleRender() {
   })();
 }
 
+/** Update the countdown text nodes in place — no re-render, so it's focus-safe. */
+function tickCountdowns() {
+  const now = Date.now();
+  for (const el of document.querySelectorAll("[data-cd-to]")) {
+    const to = Number(el.getAttribute("data-cd-to"));
+    const prefix = el.getAttribute("data-cd-prefix") || "";
+    el.textContent = prefix + countdown(to - now);
+  }
+}
+
+/** Refresh the header widgets (name, balance, presence) + demo banner. */
+async function updateHeader() {
+  const balance = await wallet.balance();
+  const vm = headerVm({
+    displayName,
+    walletAddr: vault.wallet.address,
+    balance,
+    peerCount: node?.peerCount() ?? 0,
+    demoMode,
+  });
+  headWidgets.innerHTML = headerWidgetsHtml(vm);
+  banner.innerHTML = demoMode ? demoBannerHtml() : "";
+}
+
 let polling = null;
 function startPolling() {
   if (polling) return;
   polling = setInterval(async () => {
     if (!node) return;
+    // Time- and presence-driven surfaces move every second regardless of the
+    // view version, and touch no inputs — so they run every tick, cheaply.
+    tickCountdowns();
+    await updateHeader();
     await node.update();
     if (role === "joiner" && node.writable()) {
       // Became writable → announce identity once.
@@ -233,9 +302,14 @@ async function attestFromAsr(vm) {
     homeTeam: vm.meta.homeTeam ?? "HOME",
     awayTeam: vm.meta.awayTeam ?? "AWAY",
   });
-  if (!pre) return toast("No score heard — attest manually");
+  if (!pre) return toast("No score heard — attest manually below");
   const ok = await emit({ t: "attest", marketId: vm.marketId, outcomeKey: pre.outcomeKey, evidence: { asrScore: pre.asrScore, confidence: pre.confidence } });
   if (ok) toast(`Attested ${pre.asrScore}`);
+}
+/** Manual attest — the same signed `attest` message the ASR path emits. */
+async function attestManual(vm, outcomeKey) {
+  const ok = await emit({ t: "attest", marketId: vm.marketId, outcomeKey, evidence: { confidence: 1, manual: true } });
+  if (ok) toast(`Attested ${outcomeKey}`);
 }
 
 async function settle(vm) {
@@ -250,12 +324,14 @@ async function settle(vm) {
   );
   const receipts = await settleMyDebts(transfers, wallet); // only my own debts
   for (const r of receipts) await emit({ t: "receipt", marketId: vm.marketId, manifestLine: r.line, txid: r.txid });
-  toast(receipts.length ? `Paid ${receipts.length} transfer(s)` : "Nothing to pay");
+  await updateHeader(); // balance moved
+  if (receipts.length) { toast(`Paid ${receipts.length} transfer(s)`); celebrate("🎉"); }
+  else toast("Nothing to pay");
 }
 
 async function sendChat(text) {
   if (!text.trim()) return;
-  await emit({ t: "chat", text, lang: "en" });
+  await emit({ t: "chat", text, lang });
 }
 
 // ── Rendering: VMs → DOM ─────────────────────────────────────────────────────
@@ -293,6 +369,9 @@ async function render() {
   app.replaceChildren(stage);
   lastViewKey = viewKey();
   if (snap) restoreInputs(snap);
+  tickCountdowns(); // set fresh countdown nodes to the right value immediately
+  const chat = app.querySelector("#chat");
+  if (chat && chatPinnedToBottom) chat.scrollTop = chat.scrollHeight;
 }
 
 function renderHome(stage) {
@@ -315,17 +394,19 @@ async function renderTerrace(stage) {
   const invite = h(`<div class="card stack">
     <h2>This terrace</h2>
     <div class="row"><span class="pill">${esc(t.role)}</span><span class="pill">${t.writable ? "writer" : "read-only"}</span></div>
+    <div class="row"><input id="displayname" value="${esc(displayName)}" placeholder="your name" /><button class="ghost" id="setname">Set name</button></div>
     <div><div class="muted">Invite key (share to let mates join)</div><div class="mono">${esc(t.invite)}</div></div>
     <div><div class="muted">Your writer key (send to the host to be authorized)</div><div class="mono">${esc(t.writerKey)}</div></div>
     <div class="row"><input id="authk" placeholder="authorize a mate's writer key" /><button class="ghost" id="auth">Authorize</button></div>
   </div>`);
+  busy(invite.querySelector("#setname"), () => setName(invite.querySelector("#displayname").value));
   busy(invite.querySelector("#auth"), () => authorizeWriter(invite.querySelector("#authk").value));
   stage.appendChild(invite);
 
   // New market from a bundled fixture + hunch suggestions.
   const opener = h(`<div class="card stack"><h2>Open a market</h2></div>`);
   for (const fx of FIXTURES) {
-    const b = h(`<button class="ghost">${esc(fx.home)} vs ${esc(fx.away)}</button>`);
+    const b = h(`<button class="ghost">${teamEmoji(fx.home)} ${esc(fx.home)} vs ${teamEmoji(fx.away)} ${esc(fx.away)}</button>`);
     busy(b, () => openMarketFromFixture(fx));
     opener.appendChild(b);
     const s = suggestMarkets(fx.home, fx.away, STATS_BUNDLE).slice(1, 2)[0];
@@ -336,7 +417,8 @@ async function renderTerrace(stage) {
   // Live markets.
   const list = h(`<div class="card stack"><h2>Markets (${t.markets.length})</h2></div>`);
   for (const item of t.markets) {
-    const btn = h(`<button class="ghost" style="text-align:left">${esc(item.title)} <span class="muted">· ${esc(item.closesLabel)}</span></button>`);
+    const closes = item.closesAt !== null ? cdSpanHtml(item.closesAt, "closes in ", item.closesLabel) : esc(item.closesLabel);
+    const btn = h(`<button class="ghost" style="text-align:left">${esc(item.title)} <span class="muted">· ${closes}</span></button>`);
     btn.onclick = () => { selectedMarket = item.marketId; screen = "market"; markDirty(); };
     list.appendChild(btn);
   }
@@ -351,6 +433,8 @@ async function renderMarket(stage) {
   const state = uiState();
   const vm = await marketVm(kv, state, selectedMarket);
   if (!vm) { screen = "terrace"; return renderTerrace(stage); }
+  const me = state.viewerId;
+  const s = await settlementVm(kv, selectedMarket); // kernel bets + stakes, read once
 
   const back = h(`<button class="ghost" id="back">← terrace</button>`);
   back.onclick = () => { screen = "terrace"; markDirty(); };
@@ -358,30 +442,69 @@ async function renderMarket(stage) {
 
   stage.appendChild(h(marketHeadHtml(vm)));
 
+  // Your position — what you have at risk.
+  const posCard = h(`<div class="card stack"><h2>Your position</h2></div>`);
+  posCard.appendChild(h(positionHtml(await positionVm(kv, selectedMarket, me))));
+  stage.appendChild(posCard);
+
+  // Pool odds + bet, with a live payout preview under each stake input.
   const oddsCard = h(`<div class="card stack"><h2>Pool odds</h2></div>`);
   vm.outcomes.forEach((o, i) => {
     oddsCard.appendChild(h(outcomeRowHtml(o)));
     if (vm.canBet) {
-      // Index-keyed id: stable across renders, never built from peer strings.
-      const bet = h(`<div class="row tight"><input id="stake-${i}" type="number" min="1" step="1" value="10" /><button>Bet ${esc(o.key)}</button></div>`);
-      busy(bet.querySelector("button"), () => placeBet(vm, o.key, Number(bet.querySelector("input").value)));
+      const bet = h(`<div class="stack">
+        <div class="row tight"><input id="stake-${i}" type="number" min="1" step="1" value="10" /><button>Bet ${esc(o.key)}</button></div>
+        <div id="preview-${i}"></div>
+      </div>`);
+      const input = bet.querySelector("input");
+      const preview = bet.querySelector(`#preview-${i}`);
+      const refresh = () => {
+        const n = Number(input.value);
+        preview.innerHTML =
+          Number.isFinite(n) && n > 0
+            ? previewLineHtml(o.key, usdt(previewPayout(s.bets, vm.feeBps, o.key, BigInt(Math.round(n * 1_000_000)), me)))
+            : "";
+      };
+      input.addEventListener("input", refresh);
+      refresh();
+      busy(bet.querySelector("button"), () => placeBet(vm, o.key, Number(input.value)));
       oddsCard.appendChild(bet);
     }
   });
   stage.appendChild(oddsCard);
 
+  // Resolution + settle + your P&L.
   const res = vm.resolution;
+  const finalizes =
+    vm.finalizesLabel && vm.finalizesAt !== null
+      ? ` <span class="muted">${cdSpanHtml(vm.finalizesAt, "finalizes in ", vm.finalizesLabel)}</span>`
+      : "";
   const resCard = h(`<div class="card stack">
     <h2>Resolution</h2>
-    <div>Status: <b>${esc(res.status)}</b> ${res.outcomeKey ? '<span class="' + outcomeClass(res.outcomeKey) + '">' + esc(res.outcomeKey) + "</span>" : ""}${
-      vm.finalizesLabel ? ` <span class="muted">${esc(vm.finalizesLabel)}</span>` : ""
-    }</div>
+    <div>Status: <b>${esc(res.status)}</b> ${res.outcomeKey ? '<span class="' + outcomeClass(res.outcomeKey) + '">' + esc(res.outcomeKey) + "</span>" : ""}${finalizes}</div>
   </div>`);
   if (vm.canLock) { const b = h(`<button class="ghost">Lock (whistle)</button>`); busy(b, () => lockMarket(vm)); resCard.appendChild(b); }
-  if (state.writable) { const a = h(`<button class="ghost">🎙 Attest from ASR</button>`); busy(a, () => attestFromAsr(vm)); resCard.appendChild(a); }
-  if (vm.canSettle) { const s = h(`<button>Settle in USDt</button>`); busy(s, () => settle(vm)); resCard.appendChild(s); }
+  if (vm.canSettle) { const b = h(`<button>Settle in USDt</button>`); busy(b, () => settle(vm)); resCard.appendChild(b); }
+  if (res.status === "resolved") {
+    const manifest = computePayouts({ bets: s.bets, resolution: { kind: "outcome", outcomeKey: res.outcomeKey }, feeBps: vm.feeBps });
+    resCard.appendChild(h(pnlHtml(pnlVm(manifest, s.stakes, me))));
+  }
   if (vm.receipts) resCard.appendChild(h(`<div class="square">Receipts: ${vm.receipts} line(s) settled ✓</div>`));
   stage.appendChild(resCard);
+
+  // Attestation — live quorum standings + who voted, plus how to attest.
+  const attCard = h(`<div class="card stack"><h2>Attestation</h2></div>`);
+  attCard.appendChild(h(tallyHtml(await tallyVm(kv, selectedMarket, s.stakes))));
+  if (state.writable) {
+    const asr = h(`<button class="ghost">🎙 Attest from ASR</button>`);
+    busy(asr, () => attestFromAsr(vm));
+    attCard.appendChild(asr);
+    const details = h(`<details class="stack"><summary class="muted">Attest manually</summary><div class="row wrap" style="margin-top:8px"></div></details>`);
+    const box = details.querySelector("div");
+    for (const o of vm.outcomes) { const b = h(`<button class="ghost">${esc(o.key)}</button>`); busy(b, () => attestManual(vm, o.key)); box.appendChild(b); }
+    attCard.appendChild(details);
+  }
+  stage.appendChild(attCard);
 
   await renderChatCard(stage, kv, state);
 }
@@ -389,12 +512,24 @@ async function renderMarket(stage) {
 async function renderChatCard(stage, kv, state) {
   const quip = await gafferVm(kv, selectedMarket);
   const lines = await chatVm(kv, state, translator);
-  const card = h(`<div class="card stack"><h2>Terrace</h2><div class="gaffer">🎩 ${esc(quip)}</div><div class="chat" id="chat"></div>
-    <div class="row"><input id="msg" placeholder="say something…" /><button id="send">Send</button></div></div>`);
+  const langOpts = LANGS.map((l) => `<option value="${esc(l.code)}"${l.code === lang ? " selected" : ""}>${esc(l.label)}</option>`).join("");
+  const card = h(`<div class="card stack"><h2>Terrace</h2>
+    <div class="gaffer">🎩 ${esc(quip)}</div>
+    <div class="chat" id="chat"></div>
+    <div class="row"><input id="msg" placeholder="say something…" /><select id="lang" style="flex:0 0 auto;width:auto">${langOpts}</select><button id="send">Send</button></div>
+  </div>`);
   const chat = card.querySelector("#chat");
   for (const line of lines) chat.appendChild(h(chatLineHtml(line)));
-  busy(card.querySelector("#send"), async () => { await sendChat(card.querySelector("#msg").value); card.querySelector("#msg").value = ""; });
+  chat.addEventListener("scroll", () => {
+    chatPinnedToBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 8;
+  });
+  const msg = card.querySelector("#msg");
+  const send = async () => { const v = msg.value; msg.value = ""; chatPinnedToBottom = true; await sendChat(v); };
+  msg.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } });
+  card.querySelector("#lang").addEventListener("change", (e) => setLang(e.target.value));
+  busy(card.querySelector("#send"), send);
   stage.appendChild(card);
 }
 
+updateHeader();
 scheduleRender();

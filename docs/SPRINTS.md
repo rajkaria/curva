@@ -133,10 +133,52 @@ duplicate/misordered cards). Plan: [plans/s12-render.md](./plans/s12-render.md).
   half-typed stake or message.
 - **Housekeeping:** stopped tracking `*.tsbuildinfo` (gitignored).
 
-Roadmap for S13–S16 (UX quick wins, feature wiring, pairing + browser demo,
-trust hardening): [IMPROVEMENTS.md](./IMPROVEMENTS.md).
+## S13 — UX quick wins — DONE
+Gate: demo banner + peer count + money surfaces render from view-models under
+test — **PASSED** (217 tests). Closes audit findings U1–U7 + U9. Plan:
+[plans/s13-ux.md](./plans/s13-ux.md).
+- **Honesty (U1):** a persistent demo banner — `DEMO MODE — FakeWallet (demo
+  funds) · bundled transcript ASR` — shown iff the active adapters are fakes
+  (`wallet instanceof FakeWallet`), so it disappears by itself in real mode.
+  SUBMISSION.md's "labelled in-UI" claim is now literally true.
+- **Presence (U2):** `TerraceNode.peerCount()` tracks live Hyperswarm
+  connections (add on `connection`, drop on `close`); a header pill shows
+  `⇄ N peers`, amber at 0 — the "kill the host, the market lives" demo is now
+  visible. `peerVm` tested with a fake count.
+- **Money (U3):** `walletVm` (header balance), `positionVm` (your stake per
+  outcome + at-risk), `previewPayout` (live "Returns ~X if HOME" under the stake
+  input — runs the canonical `computePayouts` over current bets + your
+  hypothetical one, so the preview equals what settlement pays, dust and all),
+  and a post-settle `pnlVm` P&L line ("You're up 13.40 ✓"). Property test pins
+  preview == manifest.
+- **Names (U4):** first-launch name (default `fan-xxxx`), persisted, sent in
+  `hello`, editable; chat, tally and header show registered names via the
+  identities map (short-key fallback).
+- **Countdowns (U5):** `closes in 12:04` / `finalizes in 9:31` tick live via
+  `cdSpanHtml` data attributes — a 1s ticker rewrites only the countdown text
+  nodes (and the header), never a full re-render, so a live clock can't wipe a
+  half-typed stake.
+- **Chat + translation (U6):** Enter-to-send, autoscroll (unless scrolled up),
+  a persisted language picker (`LANGS`, 8 languages) that stamps each message —
+  the 32-nation `renderForViewer` translate surface is now live in-app, not dead
+  code.
+- **Attestation UX (U7):** a manual-attest disclosure emitting the same signed
+  `attest` message as the ASR path, and `tallyVm` — a quorum-progress card
+  (writers/stake per outcome vs the dual-⅔ thresholds + who attested what),
+  reading the resolver's own `tallyBreakdown` (refactored out of `quorumOutcome`
+  so the card can never claim a quorum the rule wouldn't grant). VM/oracle tests
+  cover the whale-only and sock-puppet-only shortfalls.
+- **Polish (U9):** team-flag emoji on fixture buttons, an odds-bar CSS
+  transition, and a one-shot celebration on a completed settle.
+- **Build note:** the jsdom test path needs Node's `require(esm)` (Node
+  ≥20.19 / ≥22.12 / ≥24) — pinned via `.nvmrc` (22, matching CI) and `engines`.
+  Every new peer-string surface goes through the S11 escaping discipline
+  (hostile-input jsdom tests added for each).
+
+Roadmap for S14–S16 (feature wiring, pairing + browser demo, trust hardening):
+[IMPROVEMENTS.md](./IMPROVEMENTS.md).
 
 ---
-**Totals:** 11 packages + app, 194 tests (property + fuzz + e2e + jsdom),
+**Totals:** 11 packages + app, 217 tests (property + fuzz + e2e + jsdom),
 `npm run check` + `npm run build` + `npm run demo` all green. Remaining
 human-only items are listed in [SUBMISSION.md](./SUBMISSION.md).

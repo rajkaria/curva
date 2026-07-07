@@ -65,6 +65,8 @@ export class TerraceNode {
   private store: Any;
   private base: Any;
   private swarm: Any;
+  /** Live Hyperswarm connections — the P2P presence the UI shows as a peer count. */
+  private readonly connections = new Set<Any>();
 
   private constructor(private readonly opts: TerraceOptions) {}
 
@@ -149,10 +151,21 @@ export class TerraceNode {
   async joinSwarm(): Promise<void> {
     const Hyperswarm = (await dynImport("hyperswarm")).default;
     this.swarm = new Hyperswarm();
-    this.swarm.on("connection", (conn: Any) => this.store.replicate(conn));
+    this.swarm.on("connection", (conn: Any) => {
+      this.store.replicate(conn);
+      // Track presence: the "kill the host, the market lives" demo is only
+      // legible if the peer count is visible and updates as peers come and go.
+      this.connections.add(conn);
+      conn.once("close", () => this.connections.delete(conn));
+    });
     const topic = this.base.discoveryKey;
     this.swarm.join(topic, { server: true, client: true });
     await this.swarm.flush();
+  }
+
+  /** Number of live peer connections on this terrace's swarm. */
+  peerCount(): number {
+    return this.connections.size;
   }
 
   async update(): Promise<void> {

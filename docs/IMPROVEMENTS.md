@@ -45,9 +45,9 @@ Plans live in [docs/plans/](plans/); sprint log in [SPRINTS.md](SPRINTS.md).
 
 | Sprint | Theme | Plan | Gate |
 |---|---|---|---|
-| **S11** | Correctness & security hardening (B1, B3–B6, T3 + fold validation) | [plans/s11-hardening.md](plans/s11-hardening.md) | fold-validation + seq-determinism tests green; `npm run check`/`build`/`demo` green |
-| **S12** | Render architecture + render tests (B2, T5, P1–P3) | [plans/s12-render.md](plans/s12-render.md) | view-model suite green in CI; zero input-wipe by construction |
-| **S13** | UX quick wins (U1–U7, U9) | [plans/s13-ux.md](plans/s13-ux.md) | demo banner + peer count + money surfaces render from view-models under test |
+| **S11** ✅ | Correctness & security hardening (B1, B3–B6, T3 + fold validation) | [plans/s11-hardening.md](plans/s11-hardening.md) | fold-validation + seq-determinism tests green; `npm run check`/`build`/`demo` green |
+| **S12** ✅ | Render architecture + render tests (B2, T5, P1–P3) | [plans/s12-render.md](plans/s12-render.md) | view-model suite green in CI; zero input-wipe by construction |
+| **S13** ✅ | UX quick wins (U1–U7, U9) | [plans/s13-ux.md](plans/s13-ux.md) | demo banner + peer count + money surfaces render from view-models under test |
 | **S14** | Feature wiring (F1–F8) | [plans/s14-features.md](plans/s14-features.md) | every catalogue market kind openable; leaderboard from view |
 | **S15** | Pairing & zero-install demo (U8, T6) | [plans/s15-pairing-demo.md](plans/s15-pairing-demo.md) | auto-approve handshake; static browser demo builds |
 | **S16** | Trust hardening (T1, T2, T4) | [plans/s16-trust.md](plans/s16-trust.md) | receipt verify + encrypted seed + index-window all opt-in, tested |

@@ -22,26 +22,31 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Current state — what's working, deployed, broken
 
-- **S0–S12 DONE.** S0–S10 on `main`. S11 (audit hardening) + S12 (render
-  architecture) committed on the current worktree branch
-  `claude/affectionate-montalcini-6f9448`, **not yet merged to `main`**
-  (commits `b9e1f8e` S11, `806cfac` S12). Audit roadmap S13–S16 planned in
+- **S0–S13 DONE.** S0–S10 on `main`. S11 (audit hardening) + S12 (render
+  architecture) + S13 (UX quick wins) committed on the current worktree branch
+  `claude/lucid-raman-07b8dd`, **not yet merged to `main`** (commits `b9e1f8e`
+  S11, `806cfac` S12, and the S13 commit). Roadmap S14–S16 planned in
   [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/).
-- **194 tests green** (property + fuzz + e2e + jsdom). Gates all pass:
+- **217 tests green** (property + fuzz + e2e + jsdom). Gates all pass:
   `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline → converged/resolved/conserved/square).
-  CI runs all three + e2e smoke. Note: `lint` now covers `apps` too.
+  CI runs all three + e2e smoke on **Node 22**. Note: `lint` covers `apps` too.
+- **Node floor:** the jsdom test path uses `require(esm)`, so gates need Node
+  ≥20.19 / ≥22.12 / ≥24 — pinned in `.nvmrc` (22) and `engines`. An EOL Node 21
+  will make `npm run check` fail to collect the jsdom file (not a code bug).
 - npm workspaces, strict TS. Packages under `packages/` (**10**) + `apps/terrace`
   (Pear app) — S12 added `@tifo/terrace-ui`, the app's tested render layer.
 - **Working:** every pure/protocol layer, the swarm sim/fuzzer, the end-to-end
-  demo, the render layer (VMs + formatters + jsdom escaping), all docs,
-  dual-condition JS build.
+  demo, the render layer (VMs + formatters + jsdom escaping), the S13 UX surfaces
+  (demo banner, peer count, wallet/position/preview/P&L, names, live countdowns,
+  chat+translate, quorum tally), all docs, dual-condition JS build.
 - **Unverified (disclosed):** `apps/terrace/app.js` on-device behavior — needs the
-  Pear runtime, not executable in CI. The render *logic* is now extracted into
+  Pear runtime, not executable in CI. The render *logic* is extracted into
   `@tifo/terrace-ui` and fully tested; only the DOM-shell wiring in `app.js`
-  (node lifecycle, action handlers, the render-loop scheduler) is untested.
-  Real WDK/QVAC adapters are wired against the verified SDK surfaces but
-  CI/demo use FakeWallet + FakeAsr (labelled).
+  (node lifecycle, action handlers, the render-loop scheduler) is untested —
+  though a throwaway jsdom smoke confirms the module graph loads and the initial
+  render + header/banner work. Real WDK/QVAC adapters are wired against the
+  verified SDK surfaces but CI/demo use FakeWallet + FakeAsr (labelled in-UI).
 
 ## Recent changes — packages and why
 

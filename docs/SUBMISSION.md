@@ -15,8 +15,9 @@ missing code. Everything the code can prove, it proves.
 
 ## What is proven in CI today
 
-- 141 tests: property (conservation, commutativity/CRDT), fuzz (100 adversarial
-  swarm runs), quorum safety, netting soundness, and a full headless e2e.
+- 217 tests: property (conservation, commutativity/CRDT), fuzz (100 adversarial
+  swarm runs), quorum safety, netting soundness, view-model + jsdom-escaping
+  suites for the whole render layer, and a full headless e2e.
 - `npm run check` (typecheck + lint + test) · `npm run build` · `npm run demo`
   (the whole pipeline, no external services) — all green, all in CI.
 
@@ -26,8 +27,9 @@ missing code. Everything the code can prove, it proves.
   BlindPairing is the frictionless roadmap.
 - **Real WDK/QVAC paths** (`WdkWallet`, `QvacAsr`, `QvacLlm`) are wired against the
   verified SDK surfaces and lazy-loaded, but the CI/demo path uses `FakeWallet` +
-  `FakeAsr`, labelled in-UI and in the README. Swapping adapters is a config change,
-  no protocol change.
+  `FakeAsr`, labelled by a persistent in-UI demo banner (shown iff the fakes are
+  active) and in the README. Swapping adapters is a config change, no protocol
+  change.
 - **Collusion** in a small pool can steal in Mates Mode — stated, and tiered up by
   escrow ([TRUST.md](TRUST.md)).
 
@@ -37,7 +39,7 @@ missing code. Everything the code can prove, it proves.
 - [x] README: thesis → run steps (`npm i && npm run demo`) → tracks table → prior-work → limitations
 - [x] VISION.md linked from README
 - [x] External services disclosed (chain RPC only; no cloud AI, no backend)
-- [x] CI green: typecheck + lint + 141 tests + build + e2e smoke
+- [x] CI green: typecheck + lint + 217 tests + build + e2e smoke
 - [x] Prior-work declared (ported Hunch kernel ~5%, everything else in-event)
 - [ ] **Registered on DoraHacks, all three tracks selected** — human-only
 - [ ] **≤3-min unlisted YouTube demo** recorded from the script in [DEMO.md](DEMO.md) — human-only
@@ -50,6 +52,6 @@ missing code. Everything the code can prove, it proves.
 ```bash
 npm install
 npm run demo     # the whole thesis, headless, one command, no network
-npm run check    # 141 tests
+npm run check    # 217 tests (Node ≥20.19/22.12/24 — see .nvmrc)
 npm run build && pear run apps/terrace   # the live app (needs the Pear runtime)
 ```

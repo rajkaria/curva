@@ -9,7 +9,16 @@
  *  - peer strings never become CSS class names — only the outcome allowlist
  *  - bar widths come from the VM's numeric `pct`, never a string
  */
-import type { ChatLineVm, MarketVm, OutcomeVm } from "./vm.js";
+import {
+  DEMO_BANNER,
+  type ChatLineVm,
+  type HeaderVm,
+  type MarketVm,
+  type OutcomeVm,
+  type PnlVm,
+  type PositionVm,
+  type TallyVm,
+} from "./vm.js";
 
 /** Escape for both text and attribute contexts. */
 export function esc(s: unknown): string {
@@ -32,14 +41,26 @@ export const SAFE_CLASS: ReadonlySet<string> = new Set([
 export const outcomeClass = (k: string): string => (SAFE_CLASS.has(k) ? k : "");
 export const barClass = (k: string): string => (SAFE_CLASS.has(k) ? "b" + k : "");
 
-/** Market title + status pills. */
+/** Market title + status pills. The closes pill ticks live (see cdSpanHtml). */
 export function marketHeadHtml(vm: MarketVm): string {
   return `<div class="card stack">
     <h2>${esc(vm.title)}</h2>
     <div class="row"><span class="pill">${esc(vm.kind)}</span><span class="pill">${vm.statusLabel}</span><span class="pill">fee ${vm.feeBps}bps</span>${
-      vm.closesLabel ? `<span class="pill">${esc(vm.closesLabel)}</span>` : ""
+      vm.closesLabel && vm.closesAt !== null
+        ? `<span class="pill">${cdSpanHtml(vm.closesAt, "closes in ", vm.closesLabel)}</span>`
+        : ""
     }</div>
   </div>`;
+}
+
+/**
+ * A countdown span the DOM shell re-derives every second by target timestamp,
+ * touching only its text node — never a full re-render, so a live clock never
+ * wipes a half-typed stake. `prefix`/`to` are numbers/fixed copy (no peer data);
+ * `initial` is a VM-formatted string, escaped like everything else.
+ */
+export function cdSpanHtml(to: number, prefix: string, initial: string): string {
+  return `<span class="cd" data-cd-to="${to}" data-cd-prefix="${esc(prefix)}">${esc(initial)}</span>`;
 }
 
 /** One outcome: key, gross pool, odds, probability bar. */
@@ -60,4 +81,60 @@ export function renderCard(vm: MarketVm): string {
   return `<div class="stack">${marketHeadHtml(vm)}<div class="card stack"><h2>Pool odds</h2>${vm.outcomes
     .map(outcomeRowHtml)
     .join("")}</div></div>`;
+}
+
+// ── S13 surfaces: banner, header widgets, money, tally ────────────────────────
+
+/** The demo-mode honesty strip. Fixed copy — no peer strings, but still one place. */
+export function demoBannerHtml(): string {
+  return `<div class="banner">${esc(DEMO_BANNER)}</div>`;
+}
+
+/** Header widgets: presence pill (amber at 0), balance, name, address. */
+export function headerWidgetsHtml(vm: HeaderVm): string {
+  return `<span class="pill ${vm.peer.ok ? "ok" : "warn"}" title="connected peers">⇄ ${esc(vm.peer.label)}</span>
+    <span class="pill" title="your demo balance">${esc(vm.wallet.label)}</span>
+    <div class="who"><div>${esc(vm.name)}</div><div class="mono">${esc(vm.addrShort)}</div></div>`;
+}
+
+/** Your stake per outcome + total at risk. Outcome keys stay text + allowlist class. */
+export function positionHtml(vm: PositionVm): string {
+  if (!vm.hasPosition) return `<div class="muted">You haven't bet on this market yet.</div>`;
+  const rows = vm.byOutcome
+    .map(
+      (o) =>
+        `<div class="row"><span class="${outcomeClass(o.key)}">${esc(o.key)}</span><span class="muted">${esc(o.stakeLabel)} USDt</span></div>`,
+    )
+    .join("");
+  return `<div class="stack">${rows}<div class="row"><b>At risk</b><span>${esc(vm.totalLabel)} USDt</span></div></div>`;
+}
+
+/** "Returns ~23.40 if HOME" under the stake input. Number is VM-derived; key escaped. */
+export function previewLineHtml(outcomeKey: string, returnLabel: string): string {
+  return `<div class="muted preview">Returns ~${esc(returnLabel)} if <span class="${outcomeClass(outcomeKey)}">${esc(outcomeKey)}</span></div>`;
+}
+
+/** Post-settle P&L line ("You're up 13.40 ✓"). Class swings on the sign. */
+export function pnlHtml(vm: PnlVm): string {
+  return `<div class="pnl ${vm.won ? "square" : vm.net < 0n ? "warn" : "muted"}">${esc(vm.label)}</div>`;
+}
+
+/** Quorum progress: per-outcome thresholds + who attested what. All keys/names escaped. */
+export function tallyHtml(vm: TallyVm): string {
+  if (!vm.hasAttestations) {
+    return `<div class="muted">No attestations yet — ${esc(vm.thresholdLabel)}.</div>`;
+  }
+  const rows = vm.outcomes
+    .map(
+      (o) => `<div class="stack tallyrow">
+      <div class="row"><span class="${outcomeClass(o.key)}">${esc(o.key)}</span><span class="muted">${esc(o.label)}</span><span>${
+        o.meetsQuorum ? '<span class="pill ok">quorum ✓</span>' : `<span class="pill">${o.writersOk ? "writers ✓" : "writers…"} · ${o.stakeOk ? "stake ✓" : "stake…"}</span>`
+      }</span></div>
+    </div>`,
+    )
+    .join("");
+  const voters = vm.voters
+    .map((v) => `<span class="pill">${esc(v.name)} → <span class="${outcomeClass(v.outcomeKey)}">${esc(v.outcomeKey)}</span></span>`)
+    .join(" ");
+  return `<div class="stack">${rows}<div class="muted">${esc(vm.thresholdLabel)}</div><div class="row wrap">${voters}</div></div>`;
 }

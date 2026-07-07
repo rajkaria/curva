@@ -9,7 +9,25 @@
 import { describe, expect, test } from "vitest";
 import { foldMessages, randomIdentity, signMessage, type Identity, type Msg } from "@tifo/terrace-base";
 import { FakeTranslator } from "@tifo/qvac-surfaces";
-import { chatVm, gafferVm, marketVm, settlementVm, terraceVm, type UiState } from "../src/vm.js";
+import { computePayouts, type Bet } from "@tifo/market-kernel";
+import {
+  DEMO_BANNER,
+  LANGS,
+  chatVm,
+  gafferVm,
+  headerVm,
+  marketVm,
+  peerVm,
+  pnlVm,
+  positionVm,
+  previewPayout,
+  settlementVm,
+  stakeByBettor,
+  tallyVm,
+  terraceVm,
+  walletVm,
+  type UiState,
+} from "../src/vm.js";
 
 const USDT = 1_000_000n;
 const T0 = 1_000_000;
@@ -199,7 +217,7 @@ describe("terraceVm — market list", () => {
     expect(vm.role).toBe("opener");
     expect(vm.invite).toBe("invite-hex");
     expect(vm.markets).toEqual([
-      { marketId: "m1", title: "FRA v BRA", locked: false, closesLabel: "closes in 1:30:00" },
+      { marketId: "m1", title: "FRA v BRA", locked: false, closesLabel: "closes in 1:30:00", closesAt: CUTOFF },
     ]);
   });
 
@@ -254,5 +272,158 @@ describe("gafferVm", () => {
   test("has something to say with no markets", async () => {
     const kv = await foldMessages([hello(ana, "ana")]);
     expect(await gafferVm(kv, null)).toBe("Open a market and I'll have something to say.");
+  });
+});
+
+// ── S13 surfaces ──────────────────────────────────────────────────────────────
+
+describe("walletVm / peerVm / headerVm — header honesty & presence", () => {
+  test("walletVm formats the balance via usdt", () => {
+    expect(walletVm(1000n * USDT).label).toBe("1000.00 USDt");
+    expect(walletVm(23_400_000n)).toEqual({ balance: 23_400_000n, label: "23.40 USDt" });
+  });
+
+  test("peerVm pluralizes and flags zero (amber)", () => {
+    expect(peerVm(0)).toEqual({ count: 0, ok: false, label: "no peers" });
+    expect(peerVm(1)).toEqual({ count: 1, ok: true, label: "1 peer" });
+    expect(peerVm(3)).toEqual({ count: 3, ok: true, label: "3 peers" });
+    expect(peerVm(-5)).toMatchObject({ count: 0, ok: false });
+    expect(peerVm(2.9)).toMatchObject({ count: 2, label: "2 peers" });
+  });
+
+  test("headerVm composes name, truncated address, balance, presence", () => {
+    const h = headerVm({
+      displayName: "Ana",
+      walletAddr: "0x1234567890abcdef",
+      balance: 1000n * USDT,
+      peerCount: 3,
+      demoMode: true,
+    });
+    expect(h.name).toBe("Ana");
+    expect(h.addrShort).toBe("0x1234567890…");
+    expect(h.wallet.label).toBe("1000.00 USDt");
+    expect(h.peer.label).toBe("3 peers");
+    expect(h.demoMode).toBe(true);
+  });
+
+  test("DEMO_BANNER states exactly what's faked", () => {
+    expect(DEMO_BANNER).toContain("FakeWallet");
+    expect(DEMO_BANNER).toContain("ASR");
+  });
+
+  test("LANGS is a non-trivial, well-formed picker list including English", () => {
+    expect(LANGS.length).toBeGreaterThanOrEqual(8);
+    expect(LANGS.map((l) => l.code)).toContain("en");
+    expect(LANGS.every((l) => l.code.length > 0 && l.label.length > 0)).toBe(true);
+  });
+});
+
+describe("positionVm — your stake, at risk", () => {
+  test("groups your stake by outcome and totals it", async () => {
+    const kv = await foldMessages(BASE);
+    expect(await positionVm(kv, "m1", ana.idKey)).toEqual({
+      byOutcome: [{ key: "HOME", stake: 10n * USDT, stakeLabel: "10.00" }],
+      total: 10n * USDT,
+      totalLabel: "10.00",
+      hasPosition: true,
+    });
+    const boPos = await positionVm(kv, "m1", bo.idKey);
+    expect(boPos.byOutcome).toEqual([
+      { key: "AWAY", stake: 5n * USDT, stakeLabel: "5.00" },
+      { key: "HOME", stake: 2n * USDT, stakeLabel: "2.00" },
+    ]);
+    expect(boPos.total).toBe(7n * USDT);
+  });
+
+  test("no bets → no position", async () => {
+    const kv = await foldMessages(BASE);
+    expect(await positionVm(kv, "m1", cai.idKey)).toMatchObject({ hasPosition: false, total: 0n, byOutcome: [] });
+  });
+});
+
+describe("previewPayout — live return equals what settlement pays", () => {
+  test("preview equals computePayouts for that bet added (dust and all)", async () => {
+    const kv = await foldMessages(BASE);
+    const s = await settlementVm(kv, "m1");
+    const preview = previewPayout(s.bets, 0, "HOME", 10n * USDT, cai.idKey);
+    const expected = computePayouts({
+      bets: [...s.bets, { betId: "__p", bettorId: cai.idKey, outcomeKey: "HOME", stake: 10n * USDT }],
+      resolution: { kind: "outcome", outcomeKey: "HOME" },
+      feeBps: 0,
+    }).lines.find((l) => l.bettorId === cai.idKey)!.amount;
+    expect(preview).toBe(expected);
+    expect(preview).toBeGreaterThan(0n);
+  });
+
+  test("only bettor → refund (your stake back); non-positive stake → 0", async () => {
+    const kv = await foldMessages(BASE);
+    const s = await settlementVm(kv, "m1");
+    expect(previewPayout([], 0, "HOME", 10n * USDT, cai.idKey)).toBe(10n * USDT);
+    expect(previewPayout(s.bets, 0, "HOME", 0n, cai.idKey)).toBe(0n);
+    expect(previewPayout(s.bets, 0, "HOME", -1n, cai.idKey)).toBe(0n);
+  });
+});
+
+describe("pnlVm — the scoreboard after settle", () => {
+  const bets: Bet[] = [
+    { betId: "n1", bettorId: ana.idKey, outcomeKey: "HOME", stake: 10n * USDT },
+    { betId: "n2", bettorId: bo.idKey, outcomeKey: "AWAY", stake: 5n * USDT },
+    { betId: "n3", bettorId: bo.idKey, outcomeKey: "HOME", stake: 2n * USDT },
+  ];
+  const stakes = stakeByBettor(bets);
+
+  test("winner up, loser down — exactly, off the manifest", () => {
+    const manifest = computePayouts({ bets, resolution: { kind: "outcome", outcomeKey: "HOME" }, feeBps: 0 });
+    const winner = pnlVm(manifest, stakes, ana.idKey);
+    expect(winner).toMatchObject({ net: 4_166_667n, won: true, label: "You're up 4.166667 ✓" });
+    const loser = pnlVm(manifest, stakes, bo.idKey);
+    expect(loser).toMatchObject({ net: -4_166_667n, won: false, label: "You're down 4.166667" });
+    // conservation: the table nets to zero at feeBps 0.
+    expect(winner.net + loser.net).toBe(0n);
+  });
+
+  test("a void refund reads as square", () => {
+    const manifest = computePayouts({ bets, resolution: { kind: "void" }, feeBps: 0 });
+    expect(pnlVm(manifest, stakes, ana.idKey)).toMatchObject({ net: 0n, won: false, label: "Square ✓" });
+  });
+});
+
+describe("tallyVm — the quorum, made visible", () => {
+  const ATTESTED = [
+    ...BASE,
+    lock(ana, "m1", T0 + 100),
+    attest(ana, "m1", "HOME", T0 + 200),
+    attest(bo, "m1", "HOME", T0 + 200),
+    attest(cai, "m1", "HOME", T0 + 200),
+  ];
+
+  test("three writers on HOME reach quorum; standings and voters render with names", async () => {
+    const kv = await foldMessages(ATTESTED);
+    const s = await settlementVm(kv, "m1");
+    const t = await tallyVm(kv, "m1", s.stakes);
+    expect(t.totalWriters).toBe(3);
+    expect(t.quorumOutcome).toBe("HOME");
+    expect(t.outcomes.find((o) => o.key === "HOME")).toMatchObject({
+      writers: 3,
+      writersOk: true,
+      stakeOk: true,
+      meetsQuorum: true,
+      label: "3/3 writers · 100% stake",
+    });
+    expect(t.voters.map((v) => ({ name: v.name, outcomeKey: v.outcomeKey }))).toEqual([
+      { name: "ana", outcomeKey: "HOME" },
+      { name: "bo", outcomeKey: "HOME" },
+      { name: "cai", outcomeKey: "HOME" },
+    ]);
+  });
+
+  test("no attestations → nothing claimed", async () => {
+    const kv = await foldMessages(BASE);
+    const s = await settlementVm(kv, "m1");
+    const t = await tallyVm(kv, "m1", s.stakes);
+    expect(t.hasAttestations).toBe(false);
+    expect(t.outcomes).toEqual([]);
+    expect(t.voters).toEqual([]);
+    expect(t.quorumOutcome).toBeNull();
   });
 });
