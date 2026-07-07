@@ -69,7 +69,13 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   (partial tally latching quorum before a same-instant whale vote counted).
 - **Heavy SDKs lazy-loaded behind adapters + fakes** so CI/demo stay pure/fast.
 - **Dual export conditions** so tests run off TS source, app/runtime gets built JS.
-- **Live-device pairing = paste-a-key** (spec fallback); BlindPairing = roadmap.
+- **Live-device pairing = paste-a-key** (spec fallback); BlindPairing = roadmap (S15).
+- **S11: linearized index persisted as a view row (`meta!seq`)**, not a process
+  counter — survives restarts, rolls back atomically on Autobase truncate;
+  increments for dropped messages too (seq === position in the linearization).
+- **S11: hostile-input validation lives in the fold** (silent deterministic
+  drops, never throws); the app layer additionally escapes everything
+  (`esc()` + CSS-class allowlist) — defense in depth, either alone suffices.
 
 ## Next steps — specific, actionable
 
