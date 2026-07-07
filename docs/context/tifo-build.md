@@ -22,11 +22,11 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Current state — what's working, deployed, broken
 
-- **S0–S13 DONE.** S0–S10 on `main`. S11 (audit hardening) + S12 (render
-  architecture) + S13 (UX quick wins) committed on the current worktree branch
-  `claude/lucid-raman-07b8dd`, **not yet merged to `main`** (commits `b9e1f8e`
-  S11, `806cfac` S12, and the S13 commit). Roadmap S14–S16 planned in
-  [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/).
+- **S0–S13 DONE and merged to local `main`** (HEAD `961dadf`; S11 `b9e1f8e`,
+  S12 `806cfac`, S13 `806abd5`). **`origin/main` is 6 commits behind** — the
+  remaining step is `git push origin main` (outward-facing; a submission task).
+  Roadmap S14–S16 planned in [IMPROVEMENTS.md](../IMPROVEMENTS.md) +
+  [docs/plans/](../plans/).
 - **217 tests green** (property + fuzz + e2e + jsdom). Gates all pass:
   `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline → converged/resolved/conserved/square).
@@ -154,8 +154,9 @@ QVAC-LLM path, and bundle the full knockout bracket. Build on the S12/S13 VM lay
 `PATH="/opt/homebrew/Cellar/node/25.9.0_1/bin:$PATH" npm run check` (the default
 `node` here is EOL 21.7.2 and mis-collects the jsdom test; `.nvmrc` pins 22).
 
-**Branch:** S11–S13 committed on `claude/lucid-raman-07b8dd` (HEAD `806abd5`),
-**still unmerged to `main`**. Decide whether to merge before S14 or keep stacking.
+**Branch:** S11–S13 merged into local `main` (HEAD `961dadf`); the worktree
+branch `claude/lucid-raman-07b8dd` sits at the same commit. `origin/main` not yet
+pushed (6 behind). Start S14 from here (a fresh worktree off `main` is clean).
 
 Human-only submission items (see SUBMISSION.md):
 1. Register on DoraHacks, select all three tracks.
