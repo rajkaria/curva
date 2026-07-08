@@ -5,23 +5,26 @@ This is the **public face** of Curva — the app itself is a serverless Pear (P2
 app and is *not* hosted anywhere; this page just pitches it and links the repo,
 demo video, and run instructions.
 
-## Deploy to Vercel (attach your subdomain here)
+## Deploy — git is the single source of truth
 
-Curva has no existing Vercel project — create a new one pointed at this folder:
+The Vercel project **`curva`** is connected to `github.com/rajkaria/curva`.
+**Production deploys automatically on every push to `main`.** That is the only
+way the live site changes. To ship: merge to `main`, push — done.
 
-1. **Vercel → Add New → Project** → import `github.com/rajkaria/curva`.
-2. **Root Directory:** set to `web` (this isolates the static site from the
-   monorepo's `tsc` build — critical, or Vercel will try to build the whole repo).
-3. **Framework Preset:** `Other`. **Build Command:** none. **Output Directory:** `.`
-4. Deploy. Then **Project → Settings → Domains → Add** your subdomain.
+How the static site gets served from a monorepo: the repo-root
+[`vercel.json`](../vercel.json) sets `outputDirectory: "web"` and skips
+install/build, so Vercel serves this folder as-is. Because that config lives in
+the repo, **leave the project's Root Directory at the default (repo root)** — do
+*not* set it to `web`, or the `outputDirectory` path (`web/web`) breaks.
 
-Or from the CLI:
+> ⚠️ **Never run `vercel --prod` (or `vercel deploy --prod`) by hand.** The CLI
+> uploads whatever is in your local folder straight to production, bypassing git
+> entirely. That is exactly how prod once drifted ahead of `main` (the redesign
+> was live before it was ever merged). If git isn't the source of truth, nobody
+> can tell what's deployed. Push to `main` instead.
 
-```bash
-cd web
-npx vercel        # first deploy (preview)
-npx vercel --prod # promote to production, then add the domain in the dashboard
-```
+Preview deploys for a branch/PR are fine (`git push` your branch → Vercel builds
+a preview URL). Domains are managed in **Project → Settings → Domains**.
 
 ## Before you ship
 
