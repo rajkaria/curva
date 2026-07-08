@@ -1,4 +1,4 @@
-# TIFO
+# Curva
 
 Serverless P2P football prediction market (Pears + QVAC + WDK) — Tether Developers Cup.
 Per-feature context lives under `docs/context/`; the router loads the doc whose
@@ -8,7 +8,7 @@ Per-feature context lives under `docs/context/`; the router loads the doc whose
 
 | Doc | Covers |
 |---|---|
-| [docs/context/tifo-build.md](docs/context/tifo-build.md) | Whole monorepo — all packages, the Pear app, build/test/demo, sprint status |
+| [docs/context/curva-build.md](docs/context/curva-build.md) | Whole monorepo — all packages, the Pear app, build/test/demo, sprint status |
 
 ## Quick facts
 

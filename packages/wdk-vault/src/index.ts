@@ -1,5 +1,5 @@
 /**
- * @tifo/wdk-vault — self-custodial identity + USDt settlement.
+ * @curva/wdk-vault — self-custodial identity + USDt settlement.
  *
  * Pure and tested: seed → identity + wallet derivation (./derive), minimal
  * transfer netting (./netting), settlement orchestration (./settle) over a

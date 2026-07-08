@@ -1,6 +1,6 @@
 /**
  * The real WalletAdapter, backed by WDK (@tetherto/wdk-wallet-evm). This is the
- * only place TIFO touches an external service — the chain RPC — and it is
+ * only place Curva touches an external service — the chain RPC — and it is
  * disclosed as such. Message signing does NOT go through here: the identity key
  * is derived purely (see ./derive) and signs with noble, so the protocol runs
  * in Bare/Pear without WDK. WDK is load-bearing for the money: USDt balance and

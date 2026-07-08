@@ -1,9 +1,9 @@
 {
-  "name": "@tifo/wdk-vault",
+  "name": "@curva/wdk-vault",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Self-custodial vault: one seed → TIFO identity signing key + USDt wallet (BIP-39/44), minimal-transfer netting (Splitwise), and settlement over a WalletAdapter (real WDK, lazy-loaded; in-memory fake for tests/offline demo).",
+  "description": "Self-custodial vault: one seed → Curva identity signing key + USDt wallet (BIP-39/44), minimal-transfer netting (Splitwise), and settlement over a WalletAdapter (real WDK, lazy-loaded; in-memory fake for tests/offline demo).",
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -12,7 +12,7 @@
     }
   },
   "dependencies": {
-    "@tifo/market-kernel": "0.1.0",
+    "@curva/market-kernel": "0.1.0",
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@scure/bip32": "^1.7.0",

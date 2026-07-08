@@ -1,5 +1,5 @@
 /**
- * @tifo/market-kernel — the pure parimutuel core.
+ * @curva/market-kernel — the pure parimutuel core.
  *
  * Ported from the Hunch production payout engine (computeMarketPayouts,
  * settling real USDC on Base since June 2026) and adapted for a P2P market
@@ -9,7 +9,7 @@
  * - amounts are bigint USDt micros — no floats anywhere near money
  * - EXACT conservation: sum(payouts) + sum(fees) === sum(stakes), always.
  *   Hunch floors per-winner and lets the treasury keep the sub-micro dust;
- *   TIFO has no treasury, so the dust is distributed deterministically
+ *   Curva has no treasury, so the dust is distributed deterministically
  *   (largest-remainder, ties by bettorId) and the books balance to the micro.
  * - no-winning-stake resolves to a full refund (Hunch retains the pool for
  *   the treasury; a P2P market has nowhere to retain it)

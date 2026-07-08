@@ -11,7 +11,7 @@ payout preview / P&L), humanize identity (names), surface time (countdowns),
 fix chat ergonomics + activate translation, and complete the attestation UX.
 This is the sprint that moves the judge UX score from 3 to 4–5.
 
-**Architecture:** Every new surface is a view-model in `@tifo/terrace-ui`
+**Architecture:** Every new surface is a view-model in `@curva/terrace-ui`
 (S12) + a small DOM card in app.js. New local `uiState`: `{ displayName, lang,
 peerCount }` persisted to localStorage (name/lang). Peer count from Hyperswarm
 `connection`/`close` events exposed as `TerraceNode.peerCount()`.
@@ -28,7 +28,7 @@ peerCount }` persisted to localStorage (name/lang). Peer count from Hyperswarm
 | `packages/terrace-ui/test/vm.test.ts` | Modified — suites per new VM |
 | `packages/terrace-base/src/autobase-runtime.ts` | Modified — `peerCount()` |
 | `apps/terrace/app.js`, `apps/terrace/index.html` | Modified — banner, header widgets, cards, name/lang pickers |
-| `docs/SPRINTS.md`, `docs/context/tifo-build.md`, `docs/SUBMISSION.md` | Modified |
+| `docs/SPRINTS.md`, `docs/context/curva-build.md`, `docs/SUBMISSION.md` | Modified |
 
 ## Tasks
 

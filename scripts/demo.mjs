@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The scripted-swarm demo (§13 backup) — runs the entire TIFO pipeline headless
+ * The scripted-swarm demo (§13 backup) — runs the entire Curva pipeline headless
  * with no external services, and prints a narrated transcript. Judges run:
  *
  *   npm install && npm run build && npm run demo
@@ -10,10 +10,10 @@
  * receipts), so the thesis is verifiable in one command even without Pear, QVAC
  * models, a funded wallet, or a network.
  */
-import { runTerraceDemo } from "@tifo/e2e";
+import { runTerraceDemo } from "@curva/e2e";
 
 const result = await runTerraceDemo();
-console.log("\n⚽  TIFO — the serverless terrace market\n" + "─".repeat(60));
+console.log("\n⚽  Curva — the serverless terrace market\n" + "─".repeat(60));
 for (const line of result.log) console.log(line);
 console.log("─".repeat(60));
 console.log(

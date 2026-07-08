@@ -41,6 +41,6 @@ same-timestamp attestations happen to be stored in.
 ## Stated trust model
 
 A colluding majority in a small pool can still steal. This is **accepted and
-stated honestly**: TIFO's default trust model is "people you'd share a table
+stated honestly**: Curva's default trust model is "people you'd share a table
 with," tiered up by escrow modes ([TRUST.md](TRUST.md)). Judges respect a stated
 trust model far more than a hand-waved "decentralized oracle."

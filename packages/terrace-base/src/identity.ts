@@ -1,9 +1,9 @@
 /**
- * TIFO identity primitive — secp256k1 over keccak-256 digests.
+ * Curva identity primitive — secp256k1 over keccak-256 digests.
  *
  * The identity key is the root of trust for the whole protocol: it signs every
  * log message and it is what a peer custodies (derived from the WDK seed at
- * `m/44'/60'/0'/0/1`, see @tifo/wdk-vault). It is deliberately a secp256k1 key
+ * `m/44'/60'/0'/0/1`, see @curva/wdk-vault). It is deliberately a secp256k1 key
  * so it is the same primitive WDK uses for the USDt wallet — one seed, one
  * curve, identity and money from the same self-custodial root.
  *

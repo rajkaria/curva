@@ -1,14 +1,15 @@
-# TIFO ⚽
+# Curva ⚽
 
 > **A football prediction market with no server.** The swarm is the exchange, the
 > crowd is the oracle, every fan holds their own keys. Pears (P2P) + QVAC (local
 > AI) + WDK (self-custodial USDt) — a Tether Developers Cup entry, all three
 > tracks structurally load-bearing.
 
-A *tifo* is the giant choreographed display in a football stand — thousands of
-fans each holding one card. No single fan holds the picture; the picture only
-exists in the crowd. TIFO is a market built the same way: every peer holds one
-append-only log of bets; the market only exists in the crowd.
+The *curva* is the curved stand behind the goal where the ultras gather —
+thousands of fans, no assigned seats, moving and chanting as one. No single fan
+*is* the crowd; the crowd only exists in the aggregate. Curva is a market built
+the same way: every peer holds one append-only log of bets; the market only
+exists in the crowd.
 
 **Kill any machine in the swarm — including the one that created the market — and
 the market keeps trading.**
@@ -18,7 +19,7 @@ the market keeps trading.**
 ## The one insight
 
 Everyone "knows" a prediction market needs three centralized things: a matching
-engine (a server), an oracle (an admin key), and a custodian (a company). TIFO
+engine (a server), an oracle (an admin key), and a custodian (a company). Curva
 removes all three because **a parimutuel pool is a CRDT**:
 
 - Pool totals are sums; sums are commutative and associative. The payout is a
@@ -32,7 +33,7 @@ removes all three because **a parimutuel pool is a CRDT**:
 - Self-custody + parimutuel ⇒ settlement is just netting: compute the minimal
   transfer set and each loser signs their own USDt transfer.
 
-> *Polymarket needs AWS, an oracle company, and a custodian. TIFO needs two phones.*
+> *Polymarket needs AWS, an oracle company, and a custodian. Curva needs two phones.*
 
 ## Run it
 
@@ -104,7 +105,7 @@ whole protocol is testable headless. Details:
 - **Ported prior work (mine, from [Hunch](https://www.playhunch.xyz), settling real
   money on Base since June 2026):** the pure parimutuel payout math
   (`computeMarketPayouts`), odds, void/refund rules, and the ladder/recurring
-  concepts — adapted into `@tifo/market-kernel`. Every deviation is documented in
+  concepts — adapted into `@curva/market-kernel`. Every deviation is documented in
   that package's README. ~5% of the codebase; none of it touches Pears/QVAC/WDK.
 - **Built during the event (scored):** the entire P2P protocol (`terrace-base`),
   the crowd oracle, the swarm sim/fuzzer, all QVAC and WDK integration, the

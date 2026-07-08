@@ -1,5 +1,5 @@
 {
-  "name": "@tifo/terrace-base",
+  "name": "@curva/terrace-base",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -24,7 +24,7 @@ import {
   type DistributiveOmit,
   type Identity,
   type MemoryKV,
-} from "@tifo/terrace-base";
+} from "@curva/terrace-base";
 
 /** What a caller supplies to append: a message minus the fields the peer fills in. */
 export type AppendMsg = DistributiveOmit<Msg, "sig" | "author" | "v"> & { v?: 1 };

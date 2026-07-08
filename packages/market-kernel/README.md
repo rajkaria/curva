@@ -1,4 +1,4 @@
-# @tifo/market-kernel
+# @curva/market-kernel
 
 The pure parimutuel core. Zero I/O, zero dependencies, all amounts in bigint
 USDt micros. Every peer runs this same fold over the same bet set and produces
@@ -37,4 +37,4 @@ live on an eventually-consistent P2P log with no server.
 Ported from the Hunch production payout engine (`computeMarketPayouts`,
 settling real USDC on Base since June 2026) — declared prior work. Adapted for
 P2P: N-way outcomes, bigint micros, exact conservation (Hunch keeps sub-micro
-dust in the treasury; TIFO has no treasury), and refund-on-no-winner.
+dust in the treasury; Curva has no treasury), and refund-on-no-winner.

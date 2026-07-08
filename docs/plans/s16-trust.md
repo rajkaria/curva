@@ -39,7 +39,7 @@ rest). All opt-in, all tested, none changing demo-mode behavior.
 | `packages/crowd-oracle/test/quorum.test.ts` | Modified — events-window suite |
 | `apps/terrace/app.js` | Modified — ✓✓ receipts, passphrase gate |
 | `package.json` | Modified — @noble/ciphers dep |
-| `docs/TRUST.md`, `docs/SPRINTS.md`, `docs/context/tifo-build.md` | Modified |
+| `docs/TRUST.md`, `docs/SPRINTS.md`, `docs/context/curva-build.md` | Modified |
 
 ## Tasks
 

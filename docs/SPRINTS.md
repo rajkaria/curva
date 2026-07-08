@@ -1,4 +1,4 @@
-# TIFO — Sprint Log
+# Curva — Sprint Log
 
 Scope: [SCOPE.md](./SCOPE.md) · Spec: [BUILD_SPEC.md](./BUILD_SPEC.md)
 
@@ -50,7 +50,7 @@ Gate: conservation + commutativity green — **PASSED** (29 tests, `npm run chec
 Gate: 3-peer sim convergence — **PASSED** (incl. partition/heal, fence-under-gossip).
 Signed msg codec (secp256k1/keccak, recoverable sigs, canonical JSON), the
 deterministic `apply` fold over a KV view, the cutoff fence (lock + 90s belt),
-`@tifo/sim` Lamport-ordered swarm, and the `TerraceNode` Autobase/Hyperswarm runtime.
+`@curva/sim` Lamport-ordered swarm, and the `TerraceNode` Autobase/Hyperswarm runtime.
 
 ## S3 — swarm fuzzer — DONE
 Gate: invariants hold under fuzz — **PASSED**. 100 randomized runs (interleavings,
@@ -59,7 +59,7 @@ convergence, no-inflation, conservation, dedup, fence.
 
 ## S4 — Pear app — DONE
 Gate: full flow works — **PASSED** via the headless e2e (`npm run demo`, also in CI).
-`apps/terrace` real Pear app wiring all packages; `@tifo/e2e` narrated end-to-end
+`apps/terrace` real Pear app wiring all packages; `@curva/e2e` narrated end-to-end
 pipeline (derive → terrace → kill-host → lock → ASR attest → resolve → net → settle
 → receipts). Live-device pairing = paste-a-key (BlindPairing = roadmap).
 
@@ -109,11 +109,11 @@ From the 2026-07-07 product audit ([IMPROVEMENTS.md](./IMPROVEMENTS.md), plan:
   restarts, no per-launch store leak).
 
 ## S12 — render architecture & tests — DONE
-Gate: new `@tifo/terrace-ui` suite green (VMs + formatters + jsdom escaping);
+Gate: new `@curva/terrace-ui` suite green (VMs + formatters + jsdom escaping);
 check/build/demo green — **PASSED** (194 tests). Addresses audit finding B2
 (1s re-render wiped in-progress input; re-entrant async `render()` produced
 duplicate/misordered cards). Plan: [plans/s12-render.md](./plans/s12-render.md).
-- **New package `@tifo/terrace-ui`:** the app's tested render layer. `vm.ts` —
+- **New package `@curva/terrace-ui`:** the app's tested render layer. `vm.ts` —
   `(kv, uiState) → plain data` view-models (terrace / market / chat / gaffer /
   settlement), carrying peer strings RAW and routing every money/odds number
   through market-kernel + crowd-oracle. `format.ts` — exact display strings
@@ -207,7 +207,7 @@ existing view rows into new view-models.
   Tier 1 (Mates) active, Tier 2 the deterministic `electStewards` 2-of-3
   election (opener + top stakers) over the terrace's stakers. No money-flow
   change; links TRUST.md.
-- **Recent terraces (F6):** `recentTerracesVm` + a `tifo.terraces` localStorage
+- **Recent terraces (F6):** `recentTerracesVm` + a `curva.terraces` localStorage
   list give the home screen one-tap rejoin (dedup by key, most-recent-first);
   the durable storage dirs from S11 make a host rejoin land on the same terrace.
 - **Gaffer LLM (F7):** a "load model" button lazily attempts `QvacLlm.load`,

@@ -14,7 +14,7 @@ import {
   readValidBets,
   type Identity,
   type Msg,
-} from "@tifo/terrace-base";
+} from "@curva/terrace-base";
 import { resolveMarket, type AttestationEvent } from "../src/quorum.js";
 
 const USDT = 1_000_000n;

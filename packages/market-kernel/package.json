@@ -1,5 +1,5 @@
 {
-  "name": "@tifo/market-kernel",
+  "name": "@curva/market-kernel",
   "version": "0.1.0",
   "private": true,
   "type": "module",

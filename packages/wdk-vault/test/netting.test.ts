@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
-import { computePayouts, type Bet } from "@tifo/market-kernel";
+import { computePayouts, type Bet } from "@curva/market-kernel";
 import { computeDeltas, minTransfers, type Transfer } from "../src/netting.js";
 
 const USDT = 1_000_000n;

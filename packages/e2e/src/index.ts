@@ -1,5 +1,5 @@
 /**
- * @tifo/e2e — the whole product, headless.
+ * @curva/e2e — the whole product, headless.
  *
  * `runTerraceDemo` drives every layer end-to-end with the real packages and no
  * external services (FakeWallet + FakeAsr, honestly labeled): derive vaults →
@@ -11,17 +11,17 @@
  * same run is both the scripted-demo backup (§13) and a CI proof the stack
  * composes.
  */
-import { deriveVault, computeDeltas, minTransfers, settlementManifest, settleMyDebts, FakeWallet } from "@tifo/wdk-vault";
-import { Swarm } from "@tifo/sim";
-import { matchResult } from "@tifo/market-catalogue";
-import { prefillAttestation, resolveMarket } from "@tifo/crowd-oracle";
-import { computePayouts, impliedOdds, buildPools, type Bet } from "@tifo/market-kernel";
+import { deriveVault, computeDeltas, minTransfers, settlementManifest, settleMyDebts, FakeWallet } from "@curva/wdk-vault";
+import { Swarm } from "@curva/sim";
+import { matchResult } from "@curva/market-catalogue";
+import { prefillAttestation, resolveMarket } from "@curva/crowd-oracle";
+import { computePayouts, impliedOdds, buildPools, type Bet } from "@curva/market-kernel";
 import {
   readValidBets,
   readAttestationLog,
   isLocked,
   type KV,
-} from "@tifo/terrace-base";
+} from "@curva/terrace-base";
 
 const USDT = 1_000_000n;
 

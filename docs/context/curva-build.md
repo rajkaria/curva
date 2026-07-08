@@ -1,5 +1,5 @@
 ---
-feature: tifo-build
+feature: curva-build
 globs:
   - "packages/**"
   - "apps/**"
@@ -13,7 +13,7 @@ globs:
 updated: 2026-07-07  # S14 done (feature wiring); S15 next
 ---
 
-# TIFO — build context
+# Curva — build context
 
 Serverless P2P football prediction market for the Tether Developers Cup
 (Pears + QVAC + WDK). Concept/spec: [BUILD_SPEC.md](../BUILD_SPEC.md) ·
@@ -37,8 +37,8 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   default `node` on this machine is EOL 21.7.2 — run gates via a Homebrew
   `node@20`/`node@25` on PATH.
 - npm workspaces, strict TS. Packages under `packages/` (**10**) + `apps/terrace`
-  (Pear app). `@tifo/terrace-ui` (S12) is the app's tested render layer; S14 gave
-  it deps on `@tifo/market-catalogue` + `@tifo/steward-escrow` (picker/planner,
+  (Pear app). `@curva/terrace-ui` (S12) is the app's tested render layer; S14 gave
+  it deps on `@curva/market-catalogue` + `@curva/steward-escrow` (picker/planner,
   escrow election).
 - **Working:** every pure/protocol layer, the swarm sim/fuzzer, the end-to-end
   demo, the render layer (VMs + formatters + jsdom escaping), the S13 UX surfaces
@@ -50,7 +50,7 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   build.
 - **Unverified (disclosed):** `apps/terrace/app.js` on-device behavior — needs the
   Pear runtime, not executable in CI. The render *logic* is extracted into
-  `@tifo/terrace-ui` and fully tested; only the DOM-shell wiring in `app.js`
+  `@curva/terrace-ui` and fully tested; only the DOM-shell wiring in `app.js`
   (node lifecycle, action handlers, the render-loop scheduler) is untested —
   though a throwaway jsdom smoke confirms the module graph loads and the initial
   render + header/banner work. Real WDK/QVAC adapters are wired against the

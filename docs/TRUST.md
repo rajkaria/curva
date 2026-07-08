@@ -1,6 +1,6 @@
 # Trust & Settlement Tiers
 
-TIFO is honest about who can cheat whom, and lets a terrace dial up its
+Curva is honest about who can cheat whom, and lets a terrace dial up its
 guarantees. All demos use **testnet USDt** with **feeBps = 0**.
 
 ## Tier 1 — Mates Mode (default, shipped)
@@ -16,7 +16,7 @@ the terrace shows a live "everyone's square" checklist.
 arguing, plus cryptographic receipts. A debtor can refuse to pay; the swarm sees
 exactly who is unsettled. Best for people who'd share a table.
 
-## Tier 2 — Steward Escrow (shipped: `@tifo/steward-escrow`)
+## Tier 2 — Steward Escrow (shipped: `@curva/steward-escrow`)
 
 For bigger/looser groups. The swarm deterministically elects the opener + the two
 largest stakers as a **2-of-3** signer set (identical on every peer). Bets require
@@ -36,8 +36,8 @@ not attempted for this cut. We say so plainly rather than fake it.
 Payout math is the ported Hunch kernel: winners split losers' pool pro-rata;
 `feeBps` configurable (default 0 — friends don't rake friends);
 single-participant → full refund; void → full gross refund; **conservation to the
-micro-cent** enforced by property tests. TIFO distributes sub-micro dust by
-largest-remainder (Hunch keeps it in the treasury; TIFO has no treasury), so the
+micro-cent** enforced by property tests. Curva distributes sub-micro dust by
+largest-remainder (Hunch keeps it in the treasury; Curva has no treasury), so the
 books balance exactly.
 
 ## Gambling posture

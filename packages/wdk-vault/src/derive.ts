@@ -2,11 +2,11 @@
  * One seed → the whole self-custodial vault.
  *
  * BIP-39 mnemonic → BIP-32 master → BIP-44 EVM paths, exactly as WDK derives
- * them (the S0b spike proved `m/44'/60'/0'/0/0` matches WDK's account 0). TIFO
+ * them (the S0b spike proved `m/44'/60'/0'/0/0` matches WDK's account 0). Curva
  * splits the same seed into two roles:
  *
  *   m/44'/60'/0'/0/0  → USDt settlement wallet (the funded, explorer-visible address)
- *   m/44'/60'/0'/0/1  → TIFO identity key (signs every log message; @tifo/terrace-base)
+ *   m/44'/60'/0'/0/1  → Curva identity key (signs every log message; @curva/terrace-base)
  *
  * Both are secp256k1, so identity and money share one curve and one seed — the
  * self-custody story in one primitive. Pure derivation (no WDK dependency here);

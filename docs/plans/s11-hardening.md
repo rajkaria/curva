@@ -34,7 +34,7 @@ plain ESM JS for the Pear app. No new dependencies.
 | `packages/crowd-oracle/test/integration.test.ts` | Modified — new `applyMessage` signature if used |
 | `apps/terrace/app.js` | Modified — esc/busy/guards/ids/storage |
 | `docs/SPRINTS.md` | Modified — S11 entry |
-| `docs/context/tifo-build.md` | Modified — state refresh |
+| `docs/context/curva-build.md` | Modified — state refresh |
 
 ## Task graph
 

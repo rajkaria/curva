@@ -1,5 +1,5 @@
 // S0c — QVAC spike: fully local LLM inference (no cloud, no API key).
-// Proves the TIFO "terrace pundit" can run on-device: downloads Llama-3.2-1B
+// Proves the Curva "terrace pundit" can run on-device: downloads Llama-3.2-1B
 // (Q4_0, ~770MB, cached after first run) and generates a market comment.
 import { loadModel, LLAMA_3_2_1B_INST_Q4_0, completion, unloadModel } from "@qvac/sdk";
 
@@ -17,7 +17,7 @@ const history = [
   {
     role: "system",
     content:
-      "You are the TIFO terrace pundit. One punchy sentence, football-terrace tone, no hedging.",
+      "You are the Curva terrace pundit. One punchy sentence, football-terrace tone, no hedging.",
   },
   {
     role: "user",

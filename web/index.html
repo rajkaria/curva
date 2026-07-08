@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Curva — a football prediction market with no server</title>
+  <meta name="description" content="Curva is a serverless P2P football prediction market. The swarm is the exchange, the crowd is the oracle, every fan holds their own keys. Pears + QVAC + WDK — a Tether Developers Cup entry." />
+  <meta property="og:title" content="Curva — a football prediction market with no server" />
+  <meta property="og:description" content="The swarm is the exchange. The crowd is the oracle. Every fan holds their own keys. Kill the machine that created the market — it keeps trading." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0b0c1a;
+      --bg-2: #0f1020;
+      --panel: rgba(255,255,255,.03);
+      --ink: #eceefff2;
+      --muted: #9aa0c8;
+      --line: rgba(255,255,255,.10);
+      --pitch: #34e39a;
+      --flare: #ff5a3c;
+      --gold: #ffcf5c;
+      --maxw: 1080px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(52,227,154,.14), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(255,90,60,.10), transparent 55%),
+        var(--bg);
+      color: var(--ink);
+      font: 400 17px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      letter-spacing: .1px;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--pitch); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+    section { padding: clamp(48px, 8vw, 96px) 0; border-top: 1px solid var(--line); }
+
+    /* nav */
+    header.nav {
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: blur(10px);
+      background: linear-gradient(180deg, rgba(11,12,26,.85), rgba(11,12,26,.4));
+      border-bottom: 1px solid var(--line);
+    }
+    .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 800; letter-spacing: .5px; }
+    .brand .ball { font-size: 20px; }
+    .nav a.ghost { color: var(--muted); font-size: 15px; margin-left: 22px; }
+    .nav a.ghost:hover { color: var(--ink); text-decoration: none; }
+    .nav-links { display: flex; align-items: center; }
+
+    /* hero */
+    .hero { padding-top: clamp(56px, 9vw, 110px); border-top: none; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600; letter-spacing: .3px;
+      color: var(--muted);
+      border: 1px solid var(--line); border-radius: 999px;
+      padding: 6px 14px; margin-bottom: 26px;
+    }
+    .chip b { color: var(--pitch); font-weight: 700; }
+    h1 {
+      font-size: clamp(38px, 7vw, 76px);
+      line-height: 1.02; letter-spacing: -1.5px; font-weight: 850;
+      margin: 0 0 22px; max-width: 16ch;
+    }
+    h1 .accent { color: var(--pitch); }
+    .lede { font-size: clamp(18px, 2.4vw, 23px); color: var(--muted); max-width: 46ch; margin: 0 0 14px; }
+    .curva-note { font-size: 15px; color: var(--muted); max-width: 60ch; margin: 0 0 34px; font-style: italic; opacity: .85; }
+    .cta { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 40px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 9px;
+      font-weight: 700; font-size: 16px; letter-spacing: .2px;
+      padding: 13px 22px; border-radius: 12px; border: 1px solid transparent;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-1px); }
+    .btn.primary { background: var(--pitch); color: #062015; box-shadow: 0 8px 30px rgba(52,227,154,.25); }
+    .btn.primary:hover { box-shadow: 0 10px 34px rgba(52,227,154,.38); }
+    .btn.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+    .btn.secondary:hover { border-color: var(--pitch); color: var(--pitch); }
+
+    .kill {
+      margin-top: 8px; padding: 22px 24px; border-radius: 16px;
+      border: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(255,90,60,.10), rgba(255,207,92,.04));
+      font-size: clamp(18px, 2.3vw, 22px); font-weight: 750; letter-spacing: -.2px;
+    }
+    .kill .skull { margin-right: 8px; }
+
+    .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--flare); margin: 0 0 14px; }
+    h2 { font-size: clamp(26px, 3.6vw, 40px); line-height: 1.1; letter-spacing: -.8px; font-weight: 820; margin: 0 0 16px; }
+    p.sub { color: var(--muted); max-width: 62ch; font-size: 18px; margin: 0 0 30px; }
+
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .card {
+      border: 1px solid var(--line); border-radius: 16px; padding: 24px;
+      background: var(--panel);
+    }
+    .card h3 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.3px; }
+    .card .tag { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--pitch); }
+    .card p { margin: 10px 0 0; color: var(--muted); font-size: 15.5px; }
+    .card .remove { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 14px; color: var(--flare); font-weight: 600; }
+
+    blockquote.pull {
+      margin: 0; font-size: clamp(22px, 3.2vw, 34px); font-weight: 800; letter-spacing: -.6px; line-height: 1.25;
+    }
+    blockquote.pull .strike { color: var(--muted); }
+    blockquote.pull .win { color: var(--pitch); }
+
+    ul.proof { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 34px; }
+    ul.proof li { position: relative; padding-left: 30px; color: var(--muted); font-size: 16px; }
+    ul.proof li::before { content: "✓"; position: absolute; left: 0; top: 0; color: var(--pitch); font-weight: 900; }
+    ul.proof li b { color: var(--ink); font-weight: 700; }
+
+    pre {
+      margin: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px;
+      background: #070812; padding: 20px 22px; font-size: 14.5px; line-height: 1.7;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    pre .c { color: var(--muted); }
+    pre .p { color: var(--pitch); }
+
+    footer { border-top: 1px solid var(--line); padding: 40px 0 64px; color: var(--muted); font-size: 15px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: center; justify-content: space-between; }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--ink); }
+    .foot-links { display: flex; flex-wrap: wrap; gap: 22px; }
+
+    @media (max-width: 760px) {
+      .grid3 { grid-template-columns: 1fr; }
+      ul.proof { grid-template-columns: 1fr; }
+      .nav a.ghost { margin-left: 14px; }
+      .nav-links a:first-child { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <div class="brand"><span class="ball">⚽</span> CURVA</div>
+      <nav class="nav-links">
+        <a class="ghost" href="#insight">The insight</a>
+        <a class="ghost" href="#tracks">Tracks</a>
+        <a class="ghost" href="#proof">Proven</a>
+        <a class="ghost" href="docs.html">Docs</a>
+        <a class="ghost" href="https://github.com/rajkaria/curva">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <span class="chip">Tether&nbsp;Developers&nbsp;Cup&nbsp;· <b>Pears&nbsp;+&nbsp;QVAC&nbsp;+&nbsp;WDK</b></span>
+        <h1>A football prediction market with <span class="accent">no server.</span></h1>
+        <p class="lede">The swarm is the exchange. The crowd is the oracle. Every fan holds their own keys.</p>
+        <p class="curva-note">The <em>curva</em> is the curved stand behind the goal where the ultras gather — thousands of fans, no assigned seats, moving as one. No single fan is the crowd; the crowd only exists in the aggregate. Curva is a market built the same way.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/rajkaria/curva">View on GitHub</a>
+          <!-- TODO: replace # with the unlisted YouTube demo URL -->
+          <a class="btn secondary" href="#" id="demo-link">▶ Watch the 3-min demo</a>
+        </div>
+        <div class="kill"><span class="skull">💀</span>Kill any machine in the swarm — including the one that <em>created</em> the market — and the market keeps trading.</div>
+      </div>
+    </section>
+
+    <section id="insight">
+      <div class="wrap">
+        <p class="eyebrow">The one insight</p>
+        <h2>A parimutuel pool is a CRDT.</h2>
+        <p class="sub">Everyone “knows” a prediction market needs three centralized things: a matching engine, an oracle, and a custodian. Curva removes all three — because pool totals are sums, and sums don’t care about order.</p>
+        <div class="grid3">
+          <div class="card">
+            <span class="tag">No server</span>
+            <h3>The swarm matches</h3>
+            <p>Payout is a pure function of (final bet-set, outcome). Merge order doesn’t matter, so partitions heal for free — no consensus, no matching engine. The only thing needing order is the betting cutoff, and Autobase gives exactly that one fence.</p>
+          </div>
+          <div class="card">
+            <span class="tag">No oracle company</span>
+            <h3>The crowd watches</h3>
+            <p>At watch-party scale the oracle problem dissolves: everyone is literally watching the answer. Each device runs on-device ASR over the commentary and the crowd signs a stake-and-writer quorum.</p>
+          </div>
+          <div class="card">
+            <span class="tag">No custodian</span>
+            <h3>Everyone self-settles</h3>
+            <p>Self-custody + parimutuel ⇒ settlement is just netting: compute the minimal transfer set and each loser signs their own USDt transfer from their own wallet. No company ever holds the money.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <blockquote class="pull"><span class="strike">Polymarket needs AWS, an oracle company, and a custodian.</span><br /><span class="win">Curva needs two phones.</span></blockquote>
+      </div>
+    </section>
+
+    <section id="tracks">
+      <div class="wrap">
+        <p class="eyebrow">Real use of tracks</p>
+        <h2>Each one is load-bearing.</h2>
+        <p class="sub">Remove any single track and the product ceases to exist. No checkbox integrations.</p>
+        <div class="grid3">
+          <div class="card">
+            <span class="tag">Pears</span>
+            <h3>The market</h3>
+            <p>Hyperswarm discovery · Autobase multi-writer ledger + deterministic <code>apply</code> fold · Hyperbee view · cutoff fence · <code>pear</code> deploy.</p>
+            <div class="remove">Remove it → there is no market.</div>
+          </div>
+          <div class="card">
+            <span class="tag">QVAC</span>
+            <h3>The oracle</h3>
+            <p>On-device ASR → score extraction → attestation pre-fill · a local-LLM Gaffer · local chat translation across 32 languages. Zero cloud AI.</p>
+            <div class="remove">Remove it → there is no oracle.</div>
+          </div>
+          <div class="card">
+            <span class="tag">WDK</span>
+            <h3>The money</h3>
+            <p>One seed → HD identity key that signs every message + a self-custodial USDt wallet · minimal-transfer netting · transfers · receipts.</p>
+            <div class="remove">Remove it → there is no money and no identity.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="proof">
+      <div class="wrap">
+        <p class="eyebrow">What’s proven, not asserted</p>
+        <h2>A CS thesis with tests.</h2>
+        <p class="sub">237 tests — property, fuzz, quorum-safety, and a full headless end-to-end — all green in CI.</p>
+        <ul class="proof">
+          <li><b>Conservation</b> — Σ payouts + Σ fees ≡ Σ stakes, exactly, for arbitrary bet sets.</li>
+          <li><b>Commutativity</b> — any permutation, partition, or merge yields identical pools and payouts.</li>
+          <li><b>Convergence under fuzz</b> — 100 adversarial swarm runs heal to one byte-identical view.</li>
+          <li><b>Quorum safety</b> — the dual ⅔ threshold makes two outcomes reaching quorum impossible; no whale or sock-puppet can steer.</li>
+          <li><b>Netting soundness</b> — the transfer set settles every party exactly in ≤ n−1 edges.</li>
+          <li><b>Serverless by construction</b> — the demo/offline path uses no network at all.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <p class="eyebrow">Run it</p>
+        <h2>One command. No network.</h2>
+        <p class="sub">The whole thesis, headless — derive vaults → open a terrace → three bets → kill the host → cutoff lock → on-device ASR resolves → net the payout → each debtor settles their own USDt → everyone’s square.</p>
+        <pre><span class="c"># the whole pipeline, headless, no external services</span>
+npm install
+npm run <span class="p">demo</span>
+
+<span class="c"># typecheck + lint + 237 tests</span>
+npm run <span class="p">check</span>
+
+<span class="c"># the live P2P app (needs the Pear runtime)</span>
+npm run build &amp;&amp; pear run apps/terrace</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div class="brand"><span class="ball">⚽</span> CURVA</div>
+      <nav class="foot-links">
+        <a href="docs.html">Docs</a>
+        <a href="https://github.com/rajkaria/curva">GitHub</a>
+        <a href="https://github.com/rajkaria/curva/blob/main/VISION.md">Vision</a>
+        <a href="https://github.com/rajkaria/curva/blob/main/README.md">README</a>
+        <a href="https://github.com/rajkaria/curva/blob/main/LICENSE">MIT</a>
+      </nav>
+      <div>Built for the Tether Developers Cup.</div>
+    </div>
+  </footer>
+</body>
+</html>

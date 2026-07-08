@@ -3,7 +3,7 @@
  *
  * Everything the app shows comes from a VM here. VMs carry peer strings RAW —
  * escaping is applied exactly once, in the html helpers ({@link ./html}) —
- * and every number shown near money is derived through @tifo/market-kernel,
+ * and every number shown near money is derived through @curva/market-kernel,
  * never re-computed ad hoc. Each VM reads the view once per call, so a render
  * pass costs one scan per surface (the version-gated loop in the app makes
  * that zero when nothing changed).
@@ -22,10 +22,10 @@ import {
   type BetRow,
   type IdentityRow,
   type KV,
-} from "@tifo/terrace-base";
-import { buildPools, computePayouts, impliedOdds, type Bet, type PayoutManifest } from "@tifo/market-kernel";
-import { resolveMarket, tallyBreakdown, type Resolution } from "@tifo/crowd-oracle";
-import { fallbackQuip, renderForViewer, type PoolSummary, type Translator } from "@tifo/qvac-surfaces";
+} from "@curva/terrace-base";
+import { buildPools, computePayouts, impliedOdds, type Bet, type PayoutManifest } from "@curva/market-kernel";
+import { resolveMarket, tallyBreakdown, type Resolution } from "@curva/crowd-oracle";
+import { fallbackQuip, renderForViewer, type PoolSummary, type Translator } from "@curva/qvac-surfaces";
 import {
   correctScore,
   firstScorer,
@@ -34,8 +34,8 @@ import {
   totalGoalsLadder,
   type MarketSpec,
   type MicroRound,
-} from "@tifo/market-catalogue";
-import { electStewards } from "@tifo/steward-escrow";
+} from "@curva/market-catalogue";
+import { electStewards } from "@curva/steward-escrow";
 import { agoLabel, countdown, shortKey, usdt } from "./format.js";
 
 /** A signed USDt delta: "+13.40" / "-5.00" / "0.00". Positive keeps the sign. */
@@ -713,7 +713,7 @@ export interface EscrowVm {
  * is the deterministic {@link electStewards} election (opener + the two largest
  * stakers, ties by idKey) over the identities who've actually staked — every peer
  * computes the same three names. No money flow changes; this only surfaces what
- * @tifo/steward-escrow already decides.
+ * @curva/steward-escrow already decides.
  */
 export async function escrowVm(kv: KV, state: UiState): Promise<EscrowVm> {
   const identities = await readIdentities(kv);

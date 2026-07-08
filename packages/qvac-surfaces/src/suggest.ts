@@ -9,7 +9,7 @@ import {
   matchResult,
   totalGoalsLadder,
   type MarketSpec,
-} from "@tifo/market-catalogue";
+} from "@curva/market-catalogue";
 
 export interface TeamStats {
   readonly name: string;

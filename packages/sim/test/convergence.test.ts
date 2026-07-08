@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { randomIdentity } from "@tifo/terrace-base";
-import { readPools, readValidBets, isLocked } from "@tifo/terrace-base";
+import { randomIdentity } from "@curva/terrace-base";
+import { readPools, readValidBets, isLocked } from "@curva/terrace-base";
 import { Swarm } from "../src/swarm.js";
 
 const USDT = 1_000_000n;

@@ -20,7 +20,7 @@ export interface PoolSummary {
 }
 
 const SYSTEM =
-  "You are the TIFO terrace pundit. One punchy sentence, football-terrace tone, no hedging.";
+  "You are the Curva terrace pundit. One punchy sentence, football-terrace tone, no hedging.";
 
 export function buildGafferContext(pool: PoolSummary): ChatTurn[] {
   const book = pool.outcomes

@@ -1,5 +1,5 @@
 {
-  "name": "@tifo/market-catalogue",
+  "name": "@curva/market-catalogue",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     }
   },
   "dependencies": {
-    "@tifo/terrace-base": "0.1.0"
+    "@curva/terrace-base": "0.1.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts"

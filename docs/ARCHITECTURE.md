@@ -1,6 +1,6 @@
 # Architecture
 
-TIFO is one deterministic fold over a multi-writer append-only log, with three
+Curva is one deterministic fold over a multi-writer append-only log, with three
 external stacks (Pears, QVAC, WDK) isolated behind adapters. This document maps
 the pieces; see the per-package READMEs for detail.
 
@@ -47,7 +47,7 @@ pools, the lock (fence), the append-only attestation log, receipts, chat.
 
 ## The cutoff fence (the only ordering problem)
 
-Timestamps can't be trusted in P2P, so TIFO doesn't trust them. Any peer may
+Timestamps can't be trusted in P2P, so Curva doesn't trust them. Any peer may
 append `lock` once its clock passes `cutoffAt`; the view voids every bet that
 linearizes **after the first lock**. "First" is well-defined because the fold
 runs over Autobase's deterministic linearization. A 90-second wall-clock belt
@@ -64,7 +64,7 @@ lazily (`import(variable)`), so CI and the headless demo need none of them.
 
 ## Determinism & testing
 
-The `@tifo/sim` swarm models Autobase linearization with Lamport clocks: every
+The `@curva/sim` swarm models Autobase linearization with Lamport clocks: every
 peer sorts the same envelope set the same way, so identical sets ⇒ byte-identical
 views. That lets the fuzzer throw partitions, churn, and attacks at the protocol
 in-process and assert convergence + every money invariant. The S0a spike proved

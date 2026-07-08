@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { randomIdentity } from "@tifo/terrace-base";
+import { randomIdentity } from "@curva/terrace-base";
 import { electStewards } from "../src/election.js";
 import { FakeEscrowChain, verifyBetDeposit } from "../src/deposit.js";
 import { payoutInstructionDigest, signPayout, coSignPayout } from "../src/multisig.js";

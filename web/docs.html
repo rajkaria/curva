@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Curva — Documentation</title>
+  <meta name="description" content="How Curva works: a serverless P2P football prediction market built on Pears + QVAC + WDK. Protocol, architecture, oracle, trust model, and how to run it." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0b0c1a; --bg-2: #0f1020; --panel: rgba(255,255,255,.03);
+      --ink: #eceefff2; --muted: #9aa0c8; --line: rgba(255,255,255,.10);
+      --pitch: #34e39a; --flare: #ff5a3c; --gold: #ffcf5c;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1100px 500px at 100% -10%, rgba(52,227,154,.10), transparent 60%), var(--bg);
+      color: var(--ink);
+      font: 400 16.5px/1.7 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--pitch); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; background: rgba(255,255,255,.06); padding: 1.5px 6px; border-radius: 5px; }
+
+    header.nav {
+      position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
+      background: linear-gradient(180deg, rgba(11,12,26,.88), rgba(11,12,26,.5));
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner { max-width: 1180px; margin: 0 auto; padding: 0 24px; height: 62px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { display: flex; align-items: center; gap: 9px; font-weight: 800; letter-spacing: .5px; }
+    .brand .ball { font-size: 20px; }
+    .nav a.ghost { color: var(--muted); font-size: 15px; margin-left: 22px; }
+    .nav a.ghost:hover { color: var(--ink); text-decoration: none; }
+
+    .layout { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; display: grid; grid-template-columns: 224px 1fr; gap: 48px; }
+    aside.toc { position: sticky; top: 86px; align-self: start; font-size: 14.5px; }
+    aside.toc .lbl { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--flare); font-weight: 700; margin: 0 0 12px; }
+    aside.toc a { display: block; color: var(--muted); padding: 5px 0; border-left: 2px solid transparent; padding-left: 12px; margin-left: -14px; }
+    aside.toc a:hover { color: var(--ink); text-decoration: none; border-left-color: var(--pitch); }
+
+    article { min-width: 0; max-width: 760px; }
+    article > h1 { font-size: clamp(32px, 5vw, 48px); letter-spacing: -1px; line-height: 1.05; font-weight: 850; margin: 0 0 8px; }
+    .subtitle { color: var(--muted); font-size: 19px; margin: 0 0 8px; }
+    .meta-line { color: var(--muted); font-size: 14px; margin: 0 0 40px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+    .meta-line b { color: var(--pitch); }
+
+    article h2 { font-size: 27px; letter-spacing: -.5px; font-weight: 800; margin: 52px 0 14px; padding-top: 10px; scroll-margin-top: 80px; }
+    article h3 { font-size: 19px; letter-spacing: -.2px; font-weight: 700; margin: 30px 0 8px; }
+    article p { color: #cdd0e8; margin: 0 0 16px; }
+    article ul, article ol { color: #cdd0e8; margin: 0 0 16px; padding-left: 22px; }
+    article li { margin: 6px 0; }
+    article strong { color: var(--ink); }
+    .lead { font-size: 18px; color: #d7dAF0; }
+
+    .callout { border: 1px solid var(--line); border-left: 3px solid var(--pitch); border-radius: 10px; background: var(--panel); padding: 14px 18px; margin: 22px 0; font-size: 15.5px; color: var(--muted); }
+    .callout.flare { border-left-color: var(--flare); }
+
+    pre { margin: 20px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #070812; padding: 18px 20px; font-size: 14px; line-height: 1.65; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+    pre .c { color: var(--muted); } pre .p { color: var(--pitch); }
+
+    table.pkg { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14.5px; }
+    table.pkg th, table.pkg td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    table.pkg th { color: var(--muted); font-weight: 600; font-size: 12.5px; letter-spacing: .5px; text-transform: uppercase; }
+    table.pkg td code { color: var(--pitch); background: none; padding: 0; }
+    .tbl-wrap { overflow-x: auto; }
+
+    footer { border-top: 1px solid var(--line); }
+    footer .fin { max-width: 1180px; margin: 0 auto; padding: 32px 24px 60px; color: var(--muted); font-size: 15px; display: flex; flex-wrap: wrap; gap: 16px 26px; justify-content: space-between; }
+    footer a { color: var(--muted); } footer a:hover { color: var(--ink); }
+    .foot-links { display: flex; gap: 22px; flex-wrap: wrap; }
+
+    @media (max-width: 840px) {
+      .layout { grid-template-columns: 1fr; gap: 0; }
+      aside.toc { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="index.html" style="color:var(--ink)"><span class="ball">⚽</span> CURVA</a>
+      <nav>
+        <a class="ghost" href="index.html">Home</a>
+        <a class="ghost" href="index.html#tracks">Tracks</a>
+        <a class="ghost" href="https://github.com/rajkaria/curva">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="toc">
+      <p class="lbl">On this page</p>
+      <a href="#overview">Overview</a>
+      <a href="#how">How it works</a>
+      <a href="#insight">Parimutuel as a CRDT</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#tracks">The three tracks</a>
+      <a href="#oracle">The crowd oracle</a>
+      <a href="#trust">Trust &amp; escrow</a>
+      <a href="#proven">What's proven</a>
+      <a href="#run">Run &amp; build</a>
+      <a href="#faq">FAQ</a>
+    </aside>
+
+    <article>
+      <h1>Curva Documentation</h1>
+      <p class="subtitle">A serverless, peer-to-peer football prediction market.</p>
+      <p class="meta-line">Pears + QVAC + WDK · Tether Developers Cup · <b>MIT</b> · <a href="https://github.com/rajkaria/curva">github.com/rajkaria/curva</a></p>
+
+      <h2 id="overview">Overview</h2>
+      <p class="lead">Curva lets a group of fans run a real-money prediction market among themselves — no server matching bets, no oracle company calling the result, no custodian holding the money.</p>
+      <p>Everyone “knows” a prediction market needs three centralized things: a matching engine, an oracle, and a custodian. Curva removes all three. Every peer holds one append-only log of bets; the market only exists in the aggregate of the swarm. Kill any machine — including the one that <em>created</em> the market — and the market keeps trading.</p>
+      <div class="callout">A <strong>curva</strong> is the curved stand behind the goal where the ultras gather: thousands of fans, no assigned seats, moving as one. No single fan is the crowd; the crowd only exists in the aggregate. Curva is a market built the same way.</div>
+
+      <h2 id="how">How it works</h2>
+      <p>The end-to-end flow of a single terrace (a match market), exactly as <code>npm run demo</code> exercises it, headless and with no network:</p>
+      <ol>
+        <li><strong>Derive</strong> — each fan turns a WDK seed phrase into an identity key (signs every message) and a self-custodial USDt wallet.</li>
+        <li><strong>Open a terrace</strong> — a host opens a market for tonight's match and shares an invite key. Others join the swarm.</li>
+        <li><strong>Trade</strong> — fans place bets; the parimutuel pool odds shift live on every screen. Each bet is a signed message appended to that peer's log.</li>
+        <li><strong>Kill the host</strong> — the peer that created the market goes offline. The others keep trading and still converge. There is no host.</li>
+        <li><strong>Cutoff</strong> — at kickoff the market locks. Autobase's deterministic linearization is the single ordered <em>fence</em>; late bets after the fence are dropped.</li>
+        <li><strong>Resolve</strong> — at full time, each device's on-device ASR hears the score from the commentary and pre-fills an attestation. The crowd signs a dual-⅔ quorum; after a dispute window the outcome is final.</li>
+        <li><strong>Net &amp; settle</strong> — the payout manifest is netted to a minimal transfer set; each loser signs their own USDt transfer from their own wallet. Receipts land on every log — everyone's square.</li>
+      </ol>
+
+      <h2 id="insight">The insight: a parimutuel pool is a CRDT</h2>
+      <p>This is why Curva can be serverless without consensus:</p>
+      <ul>
+        <li><strong>Merge order doesn't matter.</strong> Pool totals are sums; sums are commutative and associative. The payout is a pure function of <code>(final bet-set, resolved outcome)</code>. Any permutation, partition, or merge of the same bets yields identical pools and payouts — so network partitions heal for free.</li>
+        <li><strong>Only the cutoff needs order.</strong> The one thing requiring a total order is the betting deadline, and Autobase's deterministic linearization gives exactly that one primitive — the fence — and nothing more.</li>
+        <li><strong>Settlement is just netting.</strong> Self-custody + parimutuel means no pot to hold: compute the minimal set of transfers and each debtor signs their own.</li>
+      </ul>
+      <div class="callout flare"><em>Polymarket needs AWS, an oracle company, and a custodian. Curva needs two phones.</em></div>
+
+      <h2 id="architecture">Architecture</h2>
+      <p>Ports-and-adapters throughout: everything money- or consensus-related is pure and fuzz-tested; Pears/QVAC/WDK live behind adapters with in-memory fakes, so the whole protocol is testable headless in Node with no Pear, no model, no wallet, and no network.</p>
+      <div class="tbl-wrap">
+      <table class="pkg">
+        <thead><tr><th>Package</th><th>Responsibility</th></tr></thead>
+        <tbody>
+          <tr><td><code>@curva/market-kernel</code></td><td>Pure parimutuel core — odds, payouts, refunds, void. Exact conservation via largest-remainder dust (no treasury).</td></tr>
+          <tr><td><code>@curva/terrace-base</code></td><td>Signed-message protocol · deterministic <code>apply()</code> fold · Hyperbee view · cutoff fence · Autobase multi-writer runtime.</td></tr>
+          <tr><td><code>@curva/crowd-oracle</code></td><td>Quorum math (dual ⅔ + dispute→void) and QVAC ASR score extraction.</td></tr>
+          <tr><td><code>@curva/wdk-vault</code></td><td>Seed → identity + wallet · minimal-transfer netting · USDt settlement.</td></tr>
+          <tr><td><code>@curva/market-catalogue</code></td><td>Market factories — match-result, total-goals ladder, micro-rounds, first-scorer, correct-score.</td></tr>
+          <tr><td><code>@curva/qvac-surfaces</code></td><td>The Gaffer (local LLM commentator) · terrace translate · hunch suggestions.</td></tr>
+          <tr><td><code>@curva/steward-escrow</code></td><td>Tier-2 2-of-3 escrow — steward election, deposit verify, co-signing.</td></tr>
+          <tr><td><code>@curva/terrace-ui</code></td><td>The app's tested render layer — view-models + formatters + the single HTML-escaping choke-point.</td></tr>
+          <tr><td><code>@curva/sim</code></td><td>Lamport-ordered swarm simulator + adversarial fuzzer.</td></tr>
+          <tr><td><code>@curva/e2e</code></td><td>The whole pipeline, headless (<code>npm run demo</code>).</td></tr>
+          <tr><td><code>apps/terrace</code></td><td>The Pear desktop app — a thin DOM shell over <code>@curva/terrace-ui</code>.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2 id="tracks">The three tracks</h2>
+      <p>Each track is structurally load-bearing — remove any one and the product ceases to exist.</p>
+      <h3>Pears — the market</h3>
+      <p>Hyperswarm discovery, an Autobase multi-writer ledger with a deterministic <code>apply</code> fold, a Hyperbee view of market state, the cutoff fence, and <code>pear</code> for deployment. This is the exchange; there is no server.</p>
+      <h3>QVAC — the oracle</h3>
+      <p>On-device speech-to-text over the match commentary extracts the score and pre-fills attestations; a local-LLM “Gaffer” adds commentary; chat is translated locally across 32 languages. Zero cloud AI — a mic in a pub demands local inference.</p>
+      <h3>WDK — the money</h3>
+      <p>One seed derives the HD identity key that signs every message and the self-custodial USDt wallet. Payouts net to a minimal transfer set; each loser signs their own transfer; receipts append to the log.</p>
+      <div class="callout">Identity is a secp256k1 key derived from the WDK seed and signed with <code>noble</code>, which keeps the protocol pure and Bare-runnable — WDK is load-bearing only for moving USDt.</div>
+
+      <h2 id="oracle">The crowd oracle</h2>
+      <p>At watch-party scale the oracle problem dissolves: everyone is literally watching the answer. Curva makes that safe with a <strong>dual ⅔ quorum</strong> — an outcome resolves only when it holds two-thirds of both the <em>stake</em> and the <em>writers</em>. This makes it mathematically impossible for two outcomes to both reach quorum, so neither a whale nor a sock-puppet swarm can steer the result.</p>
+      <p>ASR is a pre-fill assist, never authority — a wrong or unheard score is always one manual tap away from correction. A dispute window (evaluated per-timestamp-batch, not per-event) lets the crowd contest a result; unresolved disputes void the market and refund every stake.</p>
+
+      <h2 id="trust">Trust &amp; escrow</h2>
+      <p>Curva is honest about its trust tiers:</p>
+      <ul>
+        <li><strong>Mates Mode (default)</strong> — a small pool of people who know each other. Fast, frictionless, and the collusion risk is the same one that already exists at any pub table.</li>
+        <li><strong>Tier-2 escrow</strong> — a shipped 2-of-3 steward escrow (election, deposit verification, co-signing) for pools among people who don't all trust each other.</li>
+        <li><strong>Tier-3 (roadmap)</strong> — <code>t</code>-of-<code>n</code> threshold custody (FROST/MuSig2) so the swarm itself is the custodian, with no distinguished stewards.</li>
+      </ul>
+
+      <h2 id="proven">What's proven, not asserted</h2>
+      <p>237 tests run in CI — property, fuzz, quorum-safety, view-model, and a full headless end-to-end:</p>
+      <ul>
+        <li><strong>Conservation</strong> — Σ payouts + Σ fees ≡ Σ stakes, exactly, for arbitrary bet sets.</li>
+        <li><strong>Commutativity (the CRDT claim)</strong> — any permutation, partition, or merge yields identical pools, odds, and payouts.</li>
+        <li><strong>Convergence under fuzz</strong> — 100 randomized runs of interleavings, writer churn, partitions/heals, late bets, double-attests, and whale stakes all heal to one byte-identical view.</li>
+        <li><strong>Quorum safety</strong> — the dual ⅔ threshold makes two outcomes reaching quorum impossible.</li>
+        <li><strong>Netting soundness</strong> — the transfer set settles every party exactly in ≤ n−1 edges.</li>
+      </ul>
+
+      <h2 id="run">Run &amp; build</h2>
+      <pre><span class="c"># the whole thesis, headless, no external services</span>
+npm install
+npm run <span class="p">demo</span>
+
+<span class="c"># typecheck + lint + 237 tests (Node ≥20.19 / 22.12 / 24)</span>
+npm run <span class="p">check</span>
+
+<span class="c"># the live P2P app (needs the Pear runtime: npm i -g pear)</span>
+npm run build &amp;&amp; pear run apps/terrace</pre>
+      <p>The demo uses in-memory fakes for the wallet and ASR (clearly labelled in-app), so the entire claim is verifiable without Pear, a QVAC model, a funded wallet, or a network. Swapping in the real WDK/QVAC adapters is a configuration change, not a protocol change.</p>
+
+      <h2 id="faq">FAQ</h2>
+      <h3>Is there really no server?</h3>
+      <p>No server. Peers discover each other over Hyperswarm and each holds the full append-only ledger. The only external service in real mode is a chain RPC endpoint to broadcast USDt transfers — no backend, no cloud AI, no analytics.</p>
+      <h3>What stops someone double-spending or resolving falsely?</h3>
+      <p>Bets are signed and folded deterministically; the cutoff fence drops late bets; and the dual-⅔ quorum plus dispute→void protects resolution. In adversarial (non-mates) settings, the 2-of-3 escrow tier adds custody guarantees.</p>
+      <h3>Can I run it in a browser?</h3>
+      <p>The live app runs on the Pear runtime, not a plain browser (it uses Bare modules like Autobase and Hyperswarm). A zero-install browser demo of the UI on fake adapters is on the roadmap.</p>
+    </article>
+  </div>
+
+  <footer>
+    <div class="fin">
+      <div class="brand"><span class="ball">⚽</span> CURVA</div>
+      <nav class="foot-links">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/rajkaria/curva">GitHub</a>
+        <a href="https://github.com/rajkaria/curva/blob/main/VISION.md">Vision</a>
+        <a href="https://github.com/rajkaria/curva/blob/main/README.md">README</a>
+      </nav>
+      <div>Built for the Tether Developers Cup.</div>
+    </div>
+  </footer>
+</body>
+</html>

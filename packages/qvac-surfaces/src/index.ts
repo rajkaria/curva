@@ -1,5 +1,5 @@
 /**
- * @tifo/qvac-surfaces — the on-device QVAC surfaces.
+ * @curva/qvac-surfaces — the on-device QVAC surfaces.
  *
  * Pure prompt/routing/ranking logic (Gaffer context, translate routing, hunch
  * suggestions) tested with fakes; the real QVAC LLM/translation is lazy-loaded

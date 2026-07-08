@@ -1,7 +1,7 @@
 /**
- * TIFO — the Pear app.
+ * Curva — the Pear app.
  *
- * A thin DOM shell over @tifo/terrace-ui: every string on screen comes from a
+ * A thin DOM shell over @curva/terrace-ui: every string on screen comes from a
  * tested view-model, every piece of markup built from peer strings goes
  * through the tested html helpers, and all money/consensus math lives in the
  * pure packages. This file is wiring: node lifecycle, action handlers, and a
@@ -22,15 +22,15 @@
  * the adapters with no protocol change; the banner disappears automatically.
  * Pairing uses the spec-sanctioned paste-a-key flow (BlindPairing roadmap: S15).
  */
-import { TerraceNode, signMessage } from "@tifo/terrace-base";
+import { TerraceNode, signMessage } from "@curva/terrace-base";
 import {
   deriveVault, randomVault, isValidMnemonic,
   computeDeltas, minTransfers, settlementManifest, settleMyDebts, FakeWallet,
-} from "@tifo/wdk-vault";
-import { scheduleMicroRounds } from "@tifo/market-catalogue";
-import { prefillAttestation, FakeAsr } from "@tifo/crowd-oracle";
-import { computePayouts } from "@tifo/market-kernel";
-import { FakeTranslator, suggestMarkets, buildGafferContext, fallbackQuip, QvacLlm } from "@tifo/qvac-surfaces";
+} from "@curva/wdk-vault";
+import { scheduleMicroRounds } from "@curva/market-catalogue";
+import { prefillAttestation, FakeAsr } from "@curva/crowd-oracle";
+import { computePayouts } from "@curva/market-kernel";
+import { FakeTranslator, suggestMarkets, buildGafferContext, fallbackQuip, QvacLlm } from "@curva/qvac-surfaces";
 import {
   terraceVm, marketVm, chatVm, gafferPoolVm, settlementVm,
   positionVm, previewPayout, pnlVm, tallyVm, headerVm,
@@ -39,7 +39,7 @@ import {
   esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml, cdSpanHtml,
   demoBannerHtml, headerWidgetsHtml, positionHtml, previewLineHtml, pnlHtml, tallyHtml,
   leaderboardHtml, escrowHtml,
-} from "@tifo/terrace-ui";
+} from "@curva/terrace-ui";
 import { FIXTURES, STATS_BUNDLE, DEMO_TRANSCRIPT } from "../../fixtures/wc2026.js";
 
 const DISPUTE_WINDOW_MS = 10 * 60_000;
@@ -68,10 +68,10 @@ const teamEmoji = (name) => TEAM_EMOJI[name] ?? "⚽";
 
 // ── Vault (persisted seed) ───────────────────────────────────────────────────
 function loadVault() {
-  let mnemonic = localStorage.getItem("tifo.mnemonic");
+  let mnemonic = localStorage.getItem("curva.mnemonic");
   if (!mnemonic || !isValidMnemonic(mnemonic)) {
     mnemonic = randomVault().mnemonic;
-    localStorage.setItem("tifo.mnemonic", mnemonic);
+    localStorage.setItem("curva.mnemonic", mnemonic);
   }
   return { mnemonic, vault: deriveVault(mnemonic) };
 }
@@ -94,9 +94,9 @@ const demoMode = wallet instanceof FakeWallet;
 
 const shortId = () => "fan-" + vault.identity.idKey.slice(2, 6);
 // Local, non-replicated UI prefs (name + chat language), persisted.
-let displayName = localStorage.getItem("tifo.name") || shortId();
-localStorage.setItem("tifo.name", displayName);
-let lang = localStorage.getItem("tifo.lang") || "en";
+let displayName = localStorage.getItem("curva.name") || shortId();
+localStorage.setItem("curva.name", displayName);
+let lang = localStorage.getItem("curva.lang") || "en";
 let chatPinnedToBottom = true; // autoscroll unless the reader has scrolled up
 
 /** The uiState every VM sees — assembled fresh per render pass. */
@@ -162,21 +162,21 @@ const marketId = () => "m-" + uid();
 async function setName(n) {
   const name = n.trim() || shortId();
   displayName = name;
-  localStorage.setItem("tifo.name", name);
+  localStorage.setItem("curva.name", name);
   await updateHeader();
   if (node?.writable()) await emitHello(); // re-announce so peers see the new name
   toast("Name set");
 }
 function setLang(l) {
   lang = l;
-  localStorage.setItem("tifo.lang", l);
+  localStorage.setItem("curva.lang", l);
   markDirty(); // re-render translates every line into the new language
 }
 
 // ── Recent terraces (persisted, never replicated) ─────────────────────────────
 function loadRecents() {
   try {
-    const raw = JSON.parse(localStorage.getItem("tifo.terraces") || "[]");
+    const raw = JSON.parse(localStorage.getItem("curva.terraces") || "[]");
     return Array.isArray(raw) ? raw : [];
   } catch {
     return [];
@@ -187,7 +187,7 @@ function rememberTerrace(key, name, entryRole) {
   if (!key) return;
   const list = loadRecents().filter((e) => e && e.key !== key);
   list.push({ key, name, role: entryRole, lastSeen: Date.now() });
-  localStorage.setItem("tifo.terraces", JSON.stringify(list.slice(-20)));
+  localStorage.setItem("curva.terraces", JSON.stringify(list.slice(-20)));
 }
 async function rejoinTerrace(entry) {
   // A host has a single durable store; a joiner reconnects by invite key.

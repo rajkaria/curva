@@ -1,6 +1,6 @@
 /**
  * EVM address derivation + EIP-55 checksumming — pure, matches WDK/Ethereum so
- * a TIFO wallet address is byte-for-byte what a block explorer and any wallet
+ * a Curva wallet address is byte-for-byte what a block explorer and any wallet
  * will show for the same seed.
  */
 import { secp256k1 } from "@noble/curves/secp256k1";

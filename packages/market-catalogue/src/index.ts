@@ -1,5 +1,5 @@
 /**
- * @tifo/market-catalogue — football market factories + the recurring micro-round
+ * @curva/market-catalogue — football market factories + the recurring micro-round
  * scheduler.
  *
  * Pure: each factory returns a `{ kind, params }` the app signs into a `market`
@@ -8,7 +8,7 @@
  * 10-minute pool every 10 minutes, so the terrace never runs out of something to
  * trade and the demo never has dead air.
  */
-import type { MarketKind, MarketParams } from "@tifo/terrace-base";
+import type { MarketKind, MarketParams } from "@curva/terrace-base";
 
 export interface MarketSpec {
   readonly kind: MarketKind;

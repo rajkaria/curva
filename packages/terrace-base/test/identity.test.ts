@@ -22,7 +22,7 @@ describe("identity", () => {
 
   test("sign → verify round-trips for the signing identity", () => {
     const id = randomIdentity();
-    const d = digest("tifo:bet:fra-bra:HOME:10000000");
+    const d = digest("curva:bet:fra-bra:HOME:10000000");
     const sig = signDigest(d, id.privKey);
     expect(verifyDigest(d, sig, id.idKey)).toBe(true);
   });

@@ -1,6 +1,6 @@
 # VISION
 
-TIFO is a proof that a real-money market can live with no server, no oracle
+Curva is a proof that a real-money market can live with no server, no oracle
 company, and no custodian. The hackathon build is the wedge; here is where it goes.
 
 ## The encore nobody expects: swarms of swarms
@@ -20,7 +20,7 @@ parimutuel-as-CRDT thesis composes upward: a swarm of swarms.
   shipped 2-of-3 escrow). Attester-reward economics (route `feeBps` to attesters
   who matched the outcome). Federated tournament layer GA. Club/creator terraces —
   a podcast spins up a 5,000-listener terrace per match.
-- **Month 6** — TIFO as a *protocol*: `terrace-base` published as the P2P
+- **Month 6** — Curva as a *protocol*: `terrace-base` published as the P2P
   parimutuel primitive others embed (esports, elections-night watch parties, award
   shows). Hunch becomes one venue that can *bridge* terraces.
 
@@ -29,7 +29,7 @@ parimutuel-as-CRDT thesis composes upward: a swarm of swarms.
 The protocol stays free among mates. Revenue is optional `feeBps` on hosted/public
 terraces + an escrow-service tier. The wedge is distribution, not rake.
 
-## Why Tether wins if TIFO wins
+## Why Tether wins if Curva wins
 
 Every terrace is a reason for a group of friends to hold USDt in a self-custodial
 WDK wallet. QVAC gets its flagship privacy story — "a mic in a pub demands local

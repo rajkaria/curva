@@ -14,7 +14,7 @@ static page over an in-memory node — a judge clicks a link, no Pear install.
   vendored pure-JS QR encoder (no network, MIT, checked in under
   `apps/terrace/vendor/`).
 - *Auto-approve handshake:* the joiner already opens a Hyperswarm connection to
-  the opener. Add a `tifo-pair` protocol message on the replication stream
+  the opener. Add a `curva-pair` protocol message on the replication stream
   (userData channel): joiner sends `{writerKey, name, sig}` signed by its
   identity key; opener UI shows "Approve fan-a3f2?" → one tap calls the existing
   `addWriter`. Falls back to paste-a-key. (BlindPairing proper remains roadmap —
@@ -40,7 +40,7 @@ static page over an in-memory node — a judge clicks a link, no Pear install.
 | `apps/web/` (`index.html`, `demo-bot.js`, `build.mjs`) | Created |
 | `package.json` | Modified — `demo:web` script; esbuild devDep |
 | `.github/workflows/ci.yml` | Modified — build web demo artifact |
-| `docs/SPRINTS.md`, `docs/context/tifo-build.md`, `README.md` | Modified — demo link |
+| `docs/SPRINTS.md`, `docs/context/curva-build.md`, `README.md` | Modified — demo link |
 
 ## Tasks
 

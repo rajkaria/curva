@@ -7,9 +7,9 @@
  * the same strings the DOM shell will show verbatim.
  */
 import { describe, expect, test } from "vitest";
-import { foldMessages, randomIdentity, signMessage, type Identity, type Msg } from "@tifo/terrace-base";
-import { FakeTranslator } from "@tifo/qvac-surfaces";
-import { computePayouts, type Bet } from "@tifo/market-kernel";
+import { foldMessages, randomIdentity, signMessage, type Identity, type Msg } from "@curva/terrace-base";
+import { FakeTranslator } from "@curva/qvac-surfaces";
+import { computePayouts, type Bet } from "@curva/market-kernel";
 import {
   correctScore,
   firstScorer,
@@ -17,7 +17,7 @@ import {
   matchResult,
   scheduleMicroRounds,
   totalGoalsLadder,
-} from "@tifo/market-catalogue";
+} from "@curva/market-catalogue";
 import {
   DEMO_BANNER,
   GAFFER_IDLE,

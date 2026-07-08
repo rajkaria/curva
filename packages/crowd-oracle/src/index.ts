@@ -1,5 +1,5 @@
 /**
- * @tifo/crowd-oracle — the on-device oracle.
+ * @curva/crowd-oracle — the on-device oracle.
  *
  * Pure and tested: quorum math (./quorum) with the dual ⅔ safety property and
  * dispute-window void, and rule-based score extraction (./extract) that

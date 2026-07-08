@@ -19,8 +19,8 @@ import {
   isLocked,
   FENCE_GRACE_MS,
   type BetRow,
-} from "@tifo/terrace-base";
-import { computePayouts, type Bet } from "@tifo/market-kernel";
+} from "@curva/terrace-base";
+import { computePayouts, type Bet } from "@curva/market-kernel";
 import { runScenario, MARKET_ID, type Action, type Scenario } from "../src/scenario.js";
 import { Swarm } from "../src/swarm.js";
 
@@ -152,7 +152,7 @@ describe("targeted adversarial cases", () => {
       { kind: "flush" },
     ];
     const swarm = await runScenario({ peerCount: 3, outcomes: [...OUTCOMES], cutoffAt: CUTOFF, feeBps: 0, actions });
-    const { readAttestations } = await import("@tifo/terrace-base");
+    const { readAttestations } = await import("@curva/terrace-base");
     const tally = await readAttestations(await swarm.peers[0]!.view(), MARKET_ID);
     expect(tally.size).toBe(1);
     expect(tally.get(swarm.peers[0]!.id.idKey)?.outcomeKey).toBe("AWAY");

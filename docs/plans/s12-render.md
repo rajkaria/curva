@@ -43,7 +43,7 @@ Render loop becomes event/version-driven:
 | `packages/terrace-ui/test/dom.test.ts` | Created — jsdom renderCard/esc regression |
 | `apps/terrace/app.js` | Modified — consume VMs; versioned render loop |
 | `package.json` | Modified — lint scope `packages apps`; jsdom devDep |
-| `tsconfig.build.json`, `docs/SPRINTS.md`, `docs/context/tifo-build.md` | Modified |
+| `tsconfig.build.json`, `docs/SPRINTS.md`, `docs/context/curva-build.md` | Modified |
 
 ## Task graph
 
@@ -54,9 +54,9 @@ T1 terrace-ui scaffold ─→ T2 VM tests → impl ─→ T3 app.js consumes VMs
 
 ## Tasks
 
-### T1 — Scaffold `@tifo/terrace-ui`
+### T1 — Scaffold `@curva/terrace-ui`
 - [ ] Package with dual export conditions matching sibling packages; depends on
-  `@tifo/terrace-base`, `@tifo/market-kernel`, `@tifo/crowd-oracle`.
+  `@curva/terrace-base`, `@curva/market-kernel`, `@curva/crowd-oracle`.
 
 ### T2 — View-models (TDD)
 - [ ] Tests first: fold a scripted message set (2 writers, 1 market, 3 bets,

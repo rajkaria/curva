@@ -1,7 +1,7 @@
 /**
  * In-memory WalletAdapter — the test double, and the honest offline demo path.
  *
- * When no funded testnet wallet is available (CI, air-gapped demo), TIFO runs
+ * When no funded testnet wallet is available (CI, air-gapped demo), Curva runs
  * settlement against this fake: transfers move fake balances and return
  * clearly-labeled `0xfake…` txids. The UI marks these as simulated and the
  * README discloses it — never a fake txid dressed up as a real one.

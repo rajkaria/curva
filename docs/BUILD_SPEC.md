@@ -1,4 +1,4 @@
-# TIFO — Tether Developers Cup Build Spec
+# Curva — Tether Developers Cup Build Spec
 
 > **The serverless terrace market.** A football prediction market that lives entirely
 > among the fans watching the match — no server, no cloud, no oracle company, no
@@ -10,19 +10,19 @@
 - **Tracks:** ALL THREE — Pears (P2P) + QVAC (Local AI) + WDK (Wallets), each load-bearing
 - **Prize target:** Cup Champion (5,000 USDt) + any/all track prizes (3 × 1,000 USDt)
 - **Team:** Raj (solo)
-- **Repo:** `github.com/rajkaria/tifo` (new, public, MIT) — separate from Hunch, like the CROO precedent
+- **Repo:** `github.com/rajkaria/curva` (new, public, MIT) — separate from Hunch, like the CROO precedent
 - **License:** MIT
 
 ---
 
 ## 1. One-liner
 
-**TIFO turns any group of fans watching a match into a sovereign prediction market:
+**Curva turns any group of fans watching a match into a sovereign prediction market:
 the swarm is the exchange, the crowd is the oracle, and every fan holds their own keys.**
 
-A *tifo* is the giant choreographed display in a football stand — thousands of fans
+A *curva* is the giant choreographed display in a football stand — thousands of fans
 each holding up one card. No single fan holds the picture; the picture only exists
-in the crowd. TIFO is a market built the same way: every peer holds one append-only
+in the crowd. Curva is a market built the same way: every peer holds one append-only
 log of bets; the market only exists in the crowd. That's the brand, the metaphor,
 and the architecture in one word.
 
@@ -49,12 +49,12 @@ So the entire market reduces to: a multi-writer append-only log (Autobase), one
 deterministic fold (`apply`), and a pure payout function. Hunch has run that exact
 pure payout function (`computeMarketPayouts`) with real USDC on Base since June —
 battle-tested parimutuel math with fee handling, single-participant refunds, and
-void semantics. TIFO ports it byte-for-byte into every peer.
+void semantics. Curva ports it byte-for-byte into every peer.
 
 The second insight: **at the sofa/pub/stadium scale, the oracle problem dissolves.**
 Polymarket needs a global oracle because strangers bet against strangers. In a
 watch-party swarm, everyone is *literally watching the answer*. The people in the
-market ARE the ground truth. TIFO makes that rigorous: each peer's device runs
+market ARE the ground truth. Curva makes that rigorous: each peer's device runs
 on-device speech recognition (QVAC) over the ambient TV/radio commentary,
 extracts match events locally, and pre-fills a signed attestation. Resolution is a
 stake-and-writer quorum over signed attestations — a **crowd oracle** where the AI
@@ -67,7 +67,7 @@ their own USDt transfers from their own WDK wallet. No pot custodian at all in t
 default mode. Escrow variants exist for lower-trust settings (see §8).
 
 **Pitch compression:** *"Polymarket needs AWS, an oracle company, and a custodian.
-TIFO needs two phones."*
+Curva needs two phones."*
 
 ## 3. The Problem
 
@@ -91,9 +91,9 @@ zero infrastructure between them.
 
 ## 4. The Solution
 
-A Pear app (`pear run pear://tifo`) — no install store, no domain, no server:
+A Pear app (`pear run pear://curva`) — no install store, no domain, no server:
 
-1. **Open a terrace.** Pick a match (bundled World Cup fixture data). TIFO creates
+1. **Open a terrace.** Pick a match (bundled World Cup fixture data). Curva creates
    an Autobase, joins a Hyperswarm topic, and shows a QR/`pear://` invite.
 2. **Mates join.** Each scan adds a writer (blind-pairing invite flow). Every peer
    gets a WDK-derived identity: one seed → signing keypair (bets/attestations) +
@@ -105,7 +105,7 @@ A Pear app (`pear run pear://tifo`) — no install store, no domain, no server:
    heard the score in the commentary; peers one-tap confirm their pre-filled
    attestation. ≥⅔ quorum (stake- and writer-weighted) resolves the market;
    disagreement past the dispute window voids to full refund.
-5. **Settle in USDt, key-to-key.** TIFO computes the payout manifest with the
+5. **Settle in USDt, key-to-key.** Curva computes the payout manifest with the
    ported Hunch engine, nets it to the minimal transfer set, and each debtor
    one-taps signed USDt transfers from their own WDK wallet. Receipts (txids) are
    appended to the log so the whole swarm sees settlement complete.
@@ -122,7 +122,7 @@ crowded): match predictor apps, AI commentators, fantasy leagues, watch-party
 chat, group-tipping tools. Mostly single-track, mostly a web app with a wallet
 button, mostly cloud AI behind a local façade.
 
-Ideas considered and rejected for TIFO:
+Ideas considered and rejected for Curva:
 
 | Idea | Why rejected |
 |---|---|
@@ -131,7 +131,7 @@ Ideas considered and rejected for TIFO:
 | P2P watch-party chat + tipping | Pears-only, "group-tipping" is literally in the brief's idea list |
 | On-chain WC prediction market | Ignores all three tracks' actual point; needs a chain with liveness |
 
-TIFO's moat in this field: (a) a **CS-level thesis** (parimutuel-as-CRDT) rather
+Curva's moat in this field: (a) a **CS-level thesis** (parimutuel-as-CRDT) rather
 than a feature list; (b) **three tracks, each structurally load-bearing** — remove
 any one and the product is impossible, not merely worse; (c) **production-grade
 market math** ported from a venue that has settled real money for months; (d) a
@@ -139,7 +139,7 @@ demo with a **jaw-drop moment** (§13: kill the host, market survives).
 
 ### Track load-bearing test (the judges' "real use of track" axis)
 
-| Track | Remove it and… | What it does in TIFO |
+| Track | Remove it and… | What it does in Curva |
 |---|---|---|
 | **Pears** | there is no market | Hyperswarm discovery, Autobase multi-writer ledger + deterministic view, Corestore/Hyperbee storage, blind-pairing invites, `pear` deploy of the app itself |
 | **QVAC** | there is no oracle (and no Gaffer, no translation) | on-device ASR → event extraction → attestation pre-fill; local LLM commentary; local chat translation; zero cloud AI |
@@ -208,7 +208,7 @@ type Msg =
 
 ### 6.2 The cutoff fence (the only ordering problem — solved with the log itself)
 
-Timestamps can't be trusted in P2P. TIFO doesn't trust them:
+Timestamps can't be trusted in P2P. Curva doesn't trust them:
 
 - Any peer MAY append `lock` for a market once its local clock passes `cutoffAt`.
   Every honest peer does this automatically → the log gets many locks.
@@ -265,7 +265,7 @@ Pipeline, entirely on-device:
    who matched the final outcome — a micro attester reward pot.
 
 Threat notes: colluding majority in a 5-person pool can steal — accepted and
-*stated honestly*: TIFO's trust model is "people you'd share a table with,"
+*stated honestly*: Curva's trust model is "people you'd share a table with,"
 tiered up by escrow modes (§8). Judges respect a stated trust model far more
 than a hand-waved "decentralized oracle."
 
@@ -330,7 +330,7 @@ thought of that" encore: swarms of swarms.
 ## 10. Repo layout
 
 ```
-tifo/
+curva/
 ├── packages/
 │   ├── market-kernel/     # PURE. Ported Hunch parimutuel core: odds, payouts,
 │   │                      #   fees, refunds, void. Zero I/O. Property-tested.
@@ -394,7 +394,7 @@ Three devices on camera: two laptops + one phone. A real (or replayed) match on
 a TV in the background.
 
 1. **[0:00–0:20] Hook.** "This is a prediction market with no server. Watch."
-   Laptop A: `pear run pear://tifo` → open a terrace for tonight's match → QR.
+   Laptop A: `pear run pear://curva` → open a terrace for tonight's match → QR.
 2. **[0:20–0:50] Join & trade.** Phone + Laptop B scan in. Three bets land;
    pool odds shift live on all three screens. Open a "goal in next 10 min"
    micro-round.
@@ -410,10 +410,10 @@ a TV in the background.
    log on every screen → "everyone's square ✓". Show the block-explorer link.
 6. **[2:40–3:00] Zoom out.** The Gaffer cracks a joke; chat shows PT→EN→HI live
    translation; federated leaderboard teaser; card: *"Polymarket needs AWS, an
-   oracle company, and a custodian. TIFO needs two phones."*
+   oracle company, and a custodian. Curva needs two phones."*
 
 Backup: full pre-recorded run + a `sim`-driven scripted swarm so the live pitch
-can never be killed by venue Wi-Fi (fittingly, TIFO barely needs Wi-Fi — LAN
+can never be killed by venue Wi-Fi (fittingly, Curva barely needs Wi-Fi — LAN
 mode IS the backup).
 
 ## 14. Sprint plan (gates, no dates — depth-ordered)
@@ -459,7 +459,7 @@ working agreement, unchanged.
 
 ## 16. Judging-criteria map
 
-| Criterion | TIFO's answer |
+| Criterion | Curva's answer |
 |---|---|
 | Technical ambition | multi-writer deterministic market protocol; parimutuel-as-CRDT with fuzz-proven convergence; on-device oracle; threshold-custody roadmap |
 | User experience | 3 taps from QR to first bet; odds move live; attestation is one tap; settlement is one tap; translation makes it native-language for everyone |
@@ -474,12 +474,12 @@ working agreement, unchanged.
 - **Month 3:** SwarmVault (FROST t-of-n escrow) research build; attester-reward
   economics; federated tournament layer GA; club/creator terraces (a podcast
   spins up a 5,000-listener terrace per match).
-- **Month 6:** TIFO as a *protocol* — `terrace-base` published as the P2P
+- **Month 6:** Curva as a *protocol* — `terrace-base` published as the P2P
   parimutuel primitive others embed (esports, elections-night watch parties,
   award shows); Hunch itself becomes one venue that can *bridge* terraces.
 - **Revenue:** protocol stays free among mates; optional feeBps on hosted/public
   terraces + escrow-service tier; the wedge is distribution, not rake.
-- **Why Tether wins if TIFO wins:** every terrace is a reason for a group of
+- **Why Tether wins if Curva wins:** every terrace is a reason for a group of
   friends to hold USDt in a self-custodial WDK wallet; QVAC gets its flagship
   privacy story ("a mic in a pub demands local AI"); Pears gets the first
   consumer-legible financial app on Autobase.
@@ -487,7 +487,7 @@ working agreement, unchanged.
 ## 18. Submission checklist
 
 - [ ] Registered on DoraHacks, all three tracks selected, before July 6 close
-- [ ] Public repo `tifo`, MIT license, from first commit
+- [ ] Public repo `curva`, MIT license, from first commit
 - [ ] README: one-liner → GIF → 30-second architecture → run steps
       (`npm i && pear run .` must work first try) → tracks table (§5) →
       prior-work declaration (§12) → known limitations

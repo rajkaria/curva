@@ -1,5 +1,5 @@
 /**
- * @tifo/terrace-base — the P2P market protocol.
+ * @curva/terrace-base — the P2P market protocol.
  *
  * Pure over a {@link KV} view: the signed message codec, the deterministic
  * `apply` fold, the cutoff fence, and the derived-state readers all run headless

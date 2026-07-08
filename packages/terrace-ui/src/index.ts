@@ -1,5 +1,5 @@
 /**
- * @tifo/terrace-ui — the app's tested render layer.
+ * @curva/terrace-ui — the app's tested render layer.
  *
  * View-models turn the replicated view + local uiState into plain data
  * (vm.ts); formatters make the display strings exact (format.ts); the html

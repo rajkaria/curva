@@ -1,9 +1,9 @@
 {
-  "name": "@tifo/terrace-ui",
+  "name": "@curva/terrace-ui",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Pure view-model layer for the TIFO app: (kv, uiState) → plain data. Everything the DOM shows comes from a VM here, tested against MemoryKV + foldMessages fixtures with no Pear/Autobase dependency; the DOM shell (apps/terrace) only turns VMs into elements.",
+  "description": "Pure view-model layer for the Curva app: (kv, uiState) → plain data. Everything the DOM shows comes from a VM here, tested against MemoryKV + foldMessages fixtures with no Pear/Autobase dependency; the DOM shell (apps/terrace) only turns VMs into elements.",
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -12,12 +12,12 @@
     }
   },
   "dependencies": {
-    "@tifo/terrace-base": "0.1.0",
-    "@tifo/market-kernel": "0.1.0",
-    "@tifo/market-catalogue": "0.1.0",
-    "@tifo/crowd-oracle": "0.1.0",
-    "@tifo/qvac-surfaces": "0.1.0",
-    "@tifo/steward-escrow": "0.1.0"
+    "@curva/terrace-base": "0.1.0",
+    "@curva/market-kernel": "0.1.0",
+    "@curva/market-catalogue": "0.1.0",
+    "@curva/crowd-oracle": "0.1.0",
+    "@curva/qvac-surfaces": "0.1.0",
+    "@curva/steward-escrow": "0.1.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts"

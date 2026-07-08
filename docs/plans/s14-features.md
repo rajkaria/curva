@@ -27,7 +27,7 @@ locks the expired one (idempotent by deterministic marketId
 | `packages/terrace-ui/test/vm.test.ts` | Modified |
 | `apps/terrace/app.js` | Modified — picker, rounds ticker, leaderboard/escrow cards, recents, LLM toggle |
 | `fixtures/wc2026.js` | Modified — 16-fixture knockout bracket + per-team stats |
-| `docs/SPRINTS.md`, `docs/context/tifo-build.md` | Modified |
+| `docs/SPRINTS.md`, `docs/context/curva-build.md` | Modified |
 
 ## Tasks
 
@@ -61,7 +61,7 @@ locks the expired one (idempotent by deterministic marketId
   flow change.
 
 ### T6 — Recent terraces (F6)
-- [ ] localStorage `tifo.terraces` (key, name, role, lastSeen); home screen
+- [ ] localStorage `curva.terraces` (key, name, role, lastSeen); home screen
   lists them with one-tap rejoin (storage dirs from S11 make this durable).
 
 ### T7 — Gaffer LLM toggle (F7)

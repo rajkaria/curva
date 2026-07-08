@@ -1,7 +1,7 @@
 /**
  * Production runtime: the same `applyMessage` fold, wired to a real Autobase +
  * Hyperbee + Hyperswarm. This is what the Pear app runs; the pure sim
- * (@tifo/sim) is the *tested* convergence proof, and the S0a spike already
+ * (@curva/sim) is the *tested* convergence proof, and the S0a spike already
  * demonstrated real two-writer Autobase convergence on the wire.
  *
  * The heavy Pears SDKs are loaded through `dynImport` (a `string`-argument

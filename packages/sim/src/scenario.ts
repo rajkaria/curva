@@ -9,7 +9,7 @@
  * arbitraries that generate scenarios, keeping every run reproducible and
  * shrinkable.
  */
-import { randomIdentity } from "@tifo/terrace-base";
+import { randomIdentity } from "@curva/terrace-base";
 import { Swarm } from "./swarm.js";
 
 export type Action =

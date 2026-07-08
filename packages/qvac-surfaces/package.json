@@ -1,5 +1,5 @@
 {
-  "name": "@tifo/qvac-surfaces",
+  "name": "@curva/qvac-surfaces",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     }
   },
   "dependencies": {
-    "@tifo/market-catalogue": "0.1.0"
+    "@curva/market-catalogue": "0.1.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts"

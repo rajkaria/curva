@@ -3,14 +3,14 @@
  *
  * A payout from escrow is authorized only when ≥ threshold distinct stewards
  * sign the exact payout instruction (marketId, line, recipient, amount) with
- * their TIFO identity keys. Reuses the protocol's secp256k1/keccak signing, so a
+ * their Curva identity keys. Reuses the protocol's secp256k1/keccak signing, so a
  * steward's escrow authority is the same key it signs bets with — no new trust
  * root. This is the honest 2-of-3 primitive; true t-of-n threshold signing
  * (FROST/MuSig2) is the SwarmVault vision (Tier 3), specced not shipped.
  */
 import { keccak_256 } from "@noble/hashes/sha3";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
-import { canonicalize, signDigest, recoverSigner, type Identity } from "@tifo/terrace-base";
+import { canonicalize, signDigest, recoverSigner, type Identity } from "@curva/terrace-base";
 import type { StewardSet } from "./election.js";
 
 export interface PayoutInstruction {

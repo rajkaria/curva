@@ -1,4 +1,4 @@
-# TIFO — Scope Doc (Tether Developers Cup)
+# Curva — Scope Doc (Tether Developers Cup)
 
 > The serverless terrace market: a football prediction market that lives entirely among
 > the fans watching the match — P2P market state (Pears), on-device crowd oracle (QVAC),
@@ -22,7 +22,7 @@ Full concept + architecture: [BUILD_SPEC.md](./BUILD_SPEC.md). Sprint detail: [S
 
 ## Track compliance map
 
-| Track | Requirement | TIFO compliance |
+| Track | Requirement | Curva compliance |
 |---|---|---|
 | Pears | Pear CLI + pear-runtime, Hyperswarm/Hypercore/Autobase building blocks | App ships via `pear run`; market ledger = Autobase multi-writer log; discovery = Hyperswarm; storage = Corestore/Hyperbee. No other networking exists |
 | QVAC | All AI on-device through QVAC SDK | ASR attestation pre-fill, Gaffer commentator, chat translation — all local. AI never in the money path (assist-only, humans sign) |

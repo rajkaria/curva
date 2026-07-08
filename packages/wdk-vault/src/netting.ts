@@ -12,7 +12,7 @@
  * Pure and deterministic (parties broken by name), so every peer computes the
  * identical transfer set and can watch "everyone's square" fill in the same way.
  */
-import type { PayoutManifest } from "@tifo/market-kernel";
+import type { PayoutManifest } from "@curva/market-kernel";
 
 export interface Transfer {
   readonly from: string;

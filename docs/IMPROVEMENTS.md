@@ -1,4 +1,4 @@
-# TIFO — Post-Audit Improvement Roadmap (S11–S16)
+# Curva — Post-Audit Improvement Roadmap (S11–S16)
 
 Source: full product audit of 2026-07-07 (UI/UX, features, tech, optimizations).
 Every finding below maps to exactly one sprint — nothing is unassigned.
