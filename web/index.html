@@ -462,7 +462,7 @@
         <div class="kill reveal in d4"><span class="skull" aria-hidden="true">💀</span><span>Kill any machine in the swarm — including the one that <em>created</em> the market — and the market keeps trading.</span></div>
         <div class="stats reveal in d5">
           <div class="stat"><div class="num"><span data-count="0">0</span></div><div class="lbl">Servers</div></div>
-          <div class="stat"><div class="num"><span data-count="237">0</span></div><div class="lbl">Tests, all green</div></div>
+          <div class="stat"><div class="num"><span data-count="250">0</span></div><div class="lbl">Tests, all green</div></div>
           <div class="stat"><div class="num"><span data-count="32">0</span></div><div class="lbl">Languages, local AI</div></div>
           <div class="stat"><div class="num"><span data-count="2">0</span><span class="u">&nbsp;phones</span></div><div class="lbl">All it takes</div></div>
         </div>
@@ -673,10 +673,37 @@
       </div>
     </section>
 
+    <!-- ========== BEYOND FOOTBALL ========== -->
+    <section id="beyond">
+      <div class="wrap">
+        <p class="eyebrow reveal"><span class="n">05</span> Not just football</p>
+        <h2 class="reveal">Football is the showcase, <em>not the limit.</em></h2>
+        <p class="sub reveal d1">Every part that makes a football market work — the swarm that matches, the crowd that calls it, the wallet that settles — is blind to what the market is <em>about</em>. Underneath, a market is just a question, its outcomes, and a cutoff. So any peer can open one on <strong>anything</strong> and share the terrace with the crowd who'd know the answer. Same swarm, same crowd oracle, no server.</p>
+        <div class="grid3">
+          <div class="card reveal d1">
+            <span class="tag">Your community</span>
+            <h3>A market for any crowd</h3>
+            <p>A supporters' club, a group chat, a Discord, a DAO. Open a market, share one invite key, and your people are trading — no platform, no sign-up, nobody holding the pot.</p>
+          </div>
+          <div class="card reveal d2">
+            <span class="tag">Your company</span>
+            <h3>Ask the room, on the record</h3>
+            <p>Will we ship by Friday? Which launch lands first? Stake real USDt, and the team's own attestations — a dual ⅔ quorum — call it. A prediction market your org actually runs itself.</p>
+          </div>
+          <div class="card reveal d3">
+            <span class="tag">Anything with an answer</span>
+            <h3>Same rails, any question</h3>
+            <p>Awards night, an election, a bet between two mates. One-tap YES/NO, or up to 256 outcomes. The parimutuel kernel and the crowd oracle don't care that it isn't football.</p>
+          </div>
+        </div>
+        <p class="sub reveal d4" style="margin-top:40px">The football catalogue ships in the box. The protocol underneath was general all along — one <code>"custom"</code> market kind, the same signed message, the same dual&nbsp;⅔ crowd that settles the score.</p>
+      </div>
+    </section>
+
     <!-- ========== TRACKS ========== -->
     <section id="tracks">
       <div class="wrap">
-        <p class="eyebrow reveal"><span class="n">05</span> Built on three tracks</p>
+        <p class="eyebrow reveal"><span class="n">06</span> Built on three tracks</p>
         <h2 class="reveal">Each one is <em>load-bearing.</em></h2>
         <p class="sub reveal d1">Curva is a Tether Developers Cup entry built on the full stack — Pears, QVAC, and WDK. These aren't checkbox integrations: remove any single one and the product ceases to exist.</p>
         <div class="grid3">
@@ -705,9 +732,9 @@
     <!-- ========== PROOF ========== -->
     <section id="proof">
       <div class="wrap">
-        <p class="eyebrow reveal"><span class="n">06</span> Proven, not asserted</p>
+        <p class="eyebrow reveal"><span class="n">07</span> Proven, not asserted</p>
         <h2 class="reveal">A CS thesis <em>with tests.</em></h2>
-        <p class="sub reveal d1">The core claim — <strong>a parimutuel pool is a CRDT</strong>, so the market needs no consensus and no server — is checked by 237 property, fuzz, quorum-safety, and end-to-end tests, all green in CI.</p>
+        <p class="sub reveal d1">The core claim — <strong>a parimutuel pool is a CRDT</strong>, so the market needs no consensus and no server — is checked by 250 property, fuzz, quorum-safety, and end-to-end tests, all green in CI.</p>
         <ul class="proof">
           <li class="reveal d1"><b>Conservation</b> — Σ payouts + Σ fees ≡ Σ stakes, exactly, for arbitrary bet sets.</li>
           <li class="reveal d2"><b>Commutativity</b> — any permutation, partition, or merge of the same bets yields identical pools and payouts.</li>
@@ -722,7 +749,7 @@
     <!-- ========== GET STARTED ========== -->
     <section id="start">
       <div class="wrap">
-        <p class="eyebrow reveal"><span class="n">07</span> Get started</p>
+        <p class="eyebrow reveal"><span class="n">08</span> Get started</p>
         <h2 class="reveal">See the whole thesis <em>in two minutes.</em></h2>
         <p class="sub reveal d1">Everything runs from one repo. Start with the headless demo — it plays an entire match night (bets, host-kill, cutoff, crowd oracle, netting, settlement) with <strong>no network and no external services</strong> — then run the live P2P app with your own crowd.</p>
         <div class="start-grid">
@@ -735,7 +762,7 @@ git clone https://github.com/rajkaria/curva
 cd curva &amp;&amp; npm install
 npm run <span class="p">demo</span>
 
-<span class="c"># typecheck + lint + 237 tests</span>
+<span class="c"># typecheck + lint + 250 tests</span>
 npm run <span class="p">check</span></pre>
             <p class="note">Uses clearly-labelled in-memory fakes for wallet and speech — the whole claim is verifiable with nothing else installed.</p>
           </div>

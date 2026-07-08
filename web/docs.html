@@ -100,6 +100,7 @@
       <a href="#architecture">Architecture</a>
       <a href="#tracks">The three tracks</a>
       <a href="#oracle">The crowd oracle</a>
+      <a href="#beyond">Beyond football</a>
       <a href="#trust">Trust &amp; escrow</a>
       <a href="#proven">What's proven</a>
       <a href="#run">Run &amp; build</a>
@@ -172,6 +173,16 @@
       <p>At watch-party scale the oracle problem dissolves: everyone is literally watching the answer. Curva makes that safe with a <strong>dual ⅔ quorum</strong> — an outcome resolves only when it holds two-thirds of both the <em>stake</em> and the <em>writers</em>. This makes it mathematically impossible for two outcomes to both reach quorum, so neither a whale nor a sock-puppet swarm can steer the result.</p>
       <p>ASR is a pre-fill assist, never authority — a wrong or unheard score is always one manual tap away from correction. A dispute window (evaluated per-timestamp-batch, not per-event) lets the crowd contest a result; unresolved disputes void the market and refund every stake.</p>
 
+      <h2 id="beyond">Beyond football: custom markets</h2>
+      <p>Football is the showcase, not the limit. The entire money path — bets, pool odds, attestation, the dual-⅔ quorum, netting — is <strong>blind to what the market is about</strong>. On the wire, a market is just a <code>title</code>, a list of <code>outcomes</code>, a cutoff, and a fee; football is a <em>content skin</em> of factories on top of that generic message.</p>
+      <p>So any peer can open a market on <strong>anything</strong> and share the terrace with the crowd who'd know the answer — a supporters' club, a group chat, a company standup. A <code>"custom"</code> market carries a free-form question and 2–256 outcomes (one-tap YES/NO, or a full slate), signed as the exact same <code>market</code> message every football market uses.</p>
+      <ul>
+        <li><strong>One protocol line.</strong> The only football lock was the market-kind whitelist; the fold already validated titles and outcomes structurally. Adding <code>"custom"</code> to it unlocks the general case — bets, pools, attests, quorum, and payouts were already outcome-agnostic.</li>
+        <li><strong>Same crowd oracle.</strong> A custom market has no commentary to hear, so it settles on <em>manual</em> attestation: the crowd taps the outcome they saw win, and the same dual-⅔ quorum resolves it. No new trust model.</li>
+        <li><strong>Proven end-to-end.</strong> A dedicated test drives a non-football market (<em>“Will we ship the release by Friday?”</em>) the full distance — create → bet → lock → crowd-quorum resolve → conserved payout.</li>
+      </ul>
+      <div class="callout">Deliberately deferred (the harden-later list): a designated-resolver mode for a single trusted signer, external-data oracles for facts no one at the table can observe, and cross-terrace market discovery. The showcase is the general protocol working; hardening those is the next step.</div>
+
       <h2 id="trust">Trust &amp; escrow</h2>
       <p>Curva is honest about its trust tiers:</p>
       <ul>
@@ -181,13 +192,14 @@
       </ul>
 
       <h2 id="proven">What's proven, not asserted</h2>
-      <p>237 tests run in CI — property, fuzz, quorum-safety, view-model, and a full headless end-to-end:</p>
+      <p>250 tests run in CI — property, fuzz, quorum-safety, view-model, and a full headless end-to-end:</p>
       <ul>
         <li><strong>Conservation</strong> — Σ payouts + Σ fees ≡ Σ stakes, exactly, for arbitrary bet sets.</li>
         <li><strong>Commutativity (the CRDT claim)</strong> — any permutation, partition, or merge yields identical pools, odds, and payouts.</li>
         <li><strong>Convergence under fuzz</strong> — 100 randomized runs of interleavings, writer churn, partitions/heals, late bets, double-attests, and whale stakes all heal to one byte-identical view.</li>
         <li><strong>Quorum safety</strong> — the dual ⅔ threshold makes two outcomes reaching quorum impossible.</li>
         <li><strong>Netting soundness</strong> — the transfer set settles every party exactly in ≤ n−1 edges.</li>
+        <li><strong>General, not football-only</strong> — a non-football <code>"custom"</code> market runs the full pipeline and conserves to the micro, on the same rails.</li>
       </ul>
 
       <h2 id="run">Run &amp; build</h2>
@@ -195,7 +207,7 @@
 npm install
 npm run <span class="p">demo</span>
 
-<span class="c"># typecheck + lint + 237 tests (Node ≥20.19 / 22.12 / 24)</span>
+<span class="c"># typecheck + lint + 250 tests (Node ≥20.19 / 22.12 / 24)</span>
 npm run <span class="p">check</span>
 
 <span class="c"># the live P2P app (needs the Pear runtime: npm i -g pear)</span>
