@@ -10,7 +10,8 @@ globs:
   - "tsconfig*.json"
   - "vitest.config.ts"
   - "eslint.config.js"
-updated: 2026-07-07  # S14 done (feature wiring); S15 next
+  - "web/**"
+updated: 2026-07-08  # renamed TIFO→Curva; landing+docs site live on Vercel; browser demo next
 ---
 
 # Curva — build context
@@ -22,11 +23,21 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Current state — what's working, deployed, broken
 
-- **S0–S14 DONE** (S11 `b9e1f8e`, S12 `806cfac`, S13 `806abd5`; S14 on branch
-  `claude/gallant-williams-e5fe8c`, not yet merged to local `main`). Local
-  `main` was already ahead of `origin/main` (unpushed) before S14 — `git push
-  origin main` remains an outward-facing submission task. Roadmap S15–S16
-  planned in [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/).
+- **RENAMED TIFO → Curva (2026-07-08).** All packages `@curva/*`, root pkg + Pear
+  app `curva`; context doc + README naming narrative rewritten (curva = the ultras'
+  stand, NOT the tifo/choreographed display). Committed + pushed: `origin/main`
+  @ `4afc639` (258 subs/69 files). Repo renamed to **github.com/rajkaria/curva**,
+  git remote URL updated; repo public, MIT.
+- **S0–S14 DONE and on `origin/main`** — 237 tests green. Roadmap S15–S16 in
+  [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/). The former
+  submission items "push to main" + "confirm repo public" are now DONE.
+- **Landing + docs site LIVE.** `web/` = self-contained static (no build):
+  `index.html` (landing) + `docs.html` (full protocol/architecture/oracle/trust
+  docs) + `README.md` (deploy steps). Deployed via Vercel CLI from `web/` to
+  project **`curva`** (scope `rajkaria67-1831s-projects`); public at
+  **https://curva-rouge.vercel.app** (HTTP 200) + `/docs.html`. For git-auto-deploy,
+  set Root Directory=`web` in the dashboard. TODO in `web/index.html`: the
+  "Watch the demo" button `href="#"` awaits the YouTube URL.
 - **237 tests green** (property + fuzz + e2e + jsdom; +20 in S14). Gates all
   pass: `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline → converged/resolved/conserved/square).
@@ -58,6 +69,13 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Recent changes — packages and why
 
+- **`web/` (NEW, 2026-07-08)** — the public marketing site: `index.html` (landing),
+  `docs.html` (10-section docs: overview/how-it-works/CRDT-insight/architecture/
+  tracks/oracle/trust/proofs/run/FAQ), `README.md` (Vercel deploy steps). Vanilla
+  self-contained HTML/CSS, no build, theme-matched to the app's `#0b0c1a` navy +
+  `#34e39a` pitch-green. Verified: mobile no-overflow, a11y tree, live on Vercel.
+- **Rename sweep (2026-07-08)** — `@tifo/*`→`@curva/*` across all packages/app/docs;
+  `docs/context/tifo-build.md`→`curva-build.md`; `.nvmrc`/engines unchanged.
 - `market-kernel` — pure parimutuel (odds/payouts/refunds/void), exact conservation
   via largest-remainder dust. Ported from Hunch `computeMarketPayouts` (declared).
 - `terrace-base` — signed msg protocol, deterministic `apply` fold, cutoff fence,
@@ -147,32 +165,40 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 - **Node floor:** gates need `require(esm)` (Node ≥20.19/22.12/24) for the jsdom
   path — `.nvmrc`=22 (matches CI), `engines` tightened. Local default `node` is
   EOL v21.7.2 → run gates under Homebrew Node 25/20.20, else `check` mis-collects.
+- **Rename TIFO → Curva (2026-07-08):** curva = the curved ultras' stand (the crowd
+  as one), fits "the market is the crowd"; README etymology rewritten by hand (a
+  curva is the stand, not the choreographed display) then a case-aware word-boundary
+  sweep for the rest; gates re-verified green (237/build/demo).
+- **Public face = a static `web/` site, NOT the app.** The Pear app can't run in a
+  plain browser (Bare modules: autobase/hyperswarm) and "no server" is the thesis —
+  so the subdomain serves a self-contained landing + docs page on Vercel; the app
+  itself is never hosted. Browser-demo (fakes) is the exception, still to build.
 
 ## Next steps — specific, actionable
 
-**Next sprint: S14 — feature wiring** ([plans/s14-features.md](../plans/s14-features.md)),
-then S15–S16 per [IMPROVEMENTS.md](../IMPROVEMENTS.md). S14 scope (F1–F8): every
-catalogue market kind openable (total-goals ladder / first-scorer / correct-score,
-not just match-result), wire the micro-round scheduler into the app, make hunch
-suggestions tappable open-market actions, a PnL leaderboard from the view, a
-steward-escrow UI surface, recent-terraces/rejoin persistence, the Gaffer's lazy
-QVAC-LLM path, and bundle the full knockout bracket. Build on the S12/S13 VM layer.
+**Code — the clickable browser demo (roadmap S15/T6):** the unfinished half of the
+site. A `web/demo/` esbuild bundle that replays the `npm run demo` scenario through
+the REAL `@curva/terrace-ui` on `FakeWallet` + `FakeAsr` (drive `MemoryKV` directly,
+no Pear/network — only `TerraceNode` is non-browser and a single-peer demo skips it),
+linked from the landing demo CTA. Then S15 pairing (BlindPairing) + S16 trust
+hardening per [IMPROVEMENTS.md](../IMPROVEMENTS.md).
 
-**When you resume:** run gates with a supported Node —
-`PATH="/opt/homebrew/Cellar/node/25.9.0_1/bin:$PATH" npm run check` (the default
-`node` here is EOL 21.7.2 and mis-collects the jsdom test; `.nvmrc` pins 22).
+**When you resume:** run gates with a supported Node (default `node` here is EOL
+21.7.2 and mis-collects the jsdom test):
+`PATH="/opt/homebrew/Cellar/node@20/20.20.2/bin:$PATH" npm run check`.
 
-**Branch:** S11–S13 merged into local `main` (HEAD `961dadf`); the worktree
-branch `claude/lucid-raman-07b8dd` sits at the same commit. `origin/main` not yet
-pushed (6 behind). Start S14 from here (a fresh worktree off `main` is clean).
+**Branch:** this session's work is on `origin/main` @ `4afc639`, pushed from worktree
+branch `claude/goofy-poitras-fc8dcc`. Start next from a fresh worktree off `main`.
 
-Human-only submission items (see SUBMISSION.md):
-1. Register on DoraHacks, select all three tracks.
-2. Record the ≤3-min YouTube demo (script: [DEMO.md](../DEMO.md)).
-3. Fund a testnet wallet (faucet USDt + gas) for a real settlement txid on camera.
-4. Confirm the GitHub repo is public.
-5. Pick team nation (🏴󠁧󠁢󠁥󠁮󠁧󠁿 or 🇮🇳).
+**Human-only (see SUBMISSION.md):**
+1. Add the **subdomain** in Vercel → project `curva` → Settings → Domains.
+2. Record the ≤3-min YouTube demo ([DEMO.md](../DEMO.md)); then set the "Watch the
+   demo" `href` (search `TODO` in `web/index.html`) — it auto-redeploys on push.
+3. Register on DoraHacks, select all three tracks; pick team nation (🏴 or 🇮🇳).
+4. Fund a testnet wallet (faucet USDt + gas) for a real settlement txid on camera.
 
-Optional code polish if time: BlindPairing for frictionless invites; exercise the
-Pear app on real devices; wire the real WDK/QVAC paths against a funded wallet + a
-downloaded model.
+**Non-critical (S7 leftover):** the Gaffer QVAC-LLM model
+(`apps/terrace/models/llama-3.2-1b-q4_0.gguf`, ~800 MB) is not downloaded; the app
+falls back to templates honestly (🎩 vs 🎩⚡). Off the money path — only needed to
+show a live on-device LLM in the video. Real WDK/QVAC adapter swap is a ~10-line
+change in `app.js` + env config (rpcUrl/usdtAddress/modelSrc).

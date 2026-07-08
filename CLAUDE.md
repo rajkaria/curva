@@ -8,10 +8,12 @@ Per-feature context lives under `docs/context/`; the router loads the doc whose
 
 | Doc | Covers |
 |---|---|
-| [docs/context/curva-build.md](docs/context/curva-build.md) | Whole monorepo — all packages, the Pear app, build/test/demo, sprint status |
+| [docs/context/curva-build.md](docs/context/curva-build.md) | Whole monorepo — all packages, the Pear app, the `web/` landing+docs site, build/test/demo, status |
 
 ## Quick facts
 
 - Gates: `npm run check` (typecheck + lint + test), `npm run build`, `npm run demo`.
-- Status: S0–S10 done, 141 tests green, pushed to `main`. Remaining items are
-  human-only submission tasks — see [docs/SUBMISSION.md](docs/SUBMISSION.md).
+  Node ≥20.19/22.12/24 (default local `node` is EOL 21.7.2 — use brew node@20/25).
+- Status: S0–S14 done, 237 tests green, on `origin/main`. Renamed TIFO→Curva; the
+  `web/` site is live at https://curva-rouge.vercel.app. Next: clickable browser
+  demo. Remaining launch items are human-only — see [docs/SUBMISSION.md](docs/SUBMISSION.md).
