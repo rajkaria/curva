@@ -48,6 +48,7 @@ const KINDS: ReadonlySet<string> = new Set([
   "goal-in-window",
   "first-scorer",
   "correct-score",
+  "custom",
 ]);
 
 const isStr = (v: unknown, max: number): v is string =>

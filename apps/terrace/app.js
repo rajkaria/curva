@@ -34,7 +34,7 @@ import { FakeTranslator, suggestMarkets, buildGafferContext, fallbackQuip, QvacL
 import {
   terraceVm, marketVm, chatVm, gafferPoolVm, settlementVm,
   positionVm, previewPayout, pnlVm, tallyVm, headerVm,
-  marketPickerVm, planMicroRounds, leaderboardVm, escrowVm, recentTerracesVm,
+  marketPickerVm, buildCustomMarket, planMicroRounds, leaderboardVm, escrowVm, recentTerracesVm,
   LANGS, GAFFER_IDLE, countdown, usdt,
   esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml, cdSpanHtml,
   demoBannerHtml, headerWidgetsHtml, positionHtml, previewLineHtml, pnlHtml, tallyHtml,
@@ -339,6 +339,20 @@ async function openMarketFromSpec(fx, spec) {
   if (ok) toast(`Opened: ${spec.params.title}`);
 }
 
+/** Open a custom market on anything — not tied to a fixture. `title`/`outcomesText`
+ *  come straight from the form; `buildCustomMarket` validates against the fold's
+ *  caps, so we only sign specs `apply` will keep. Closes `mins` minutes out. */
+async function openCustomMarket(title, outcomesText, mins) {
+  const built = buildCustomMarket({ title, outcomesText });
+  if (!built.ok) { toast(built.error); return; }
+  const minutes = Number(mins) > 0 ? Number(mins) : 60;
+  const ok = await emit({
+    t: "market", marketId: marketId(), kind: built.spec.kind, params: built.spec.params,
+    cutoffAt: Date.now() + minutes * 60_000, feeBps: 0,
+  });
+  if (ok) toast(`Opened: ${built.spec.params.title}`);
+}
+
 // ── Micro-rounds (opener-side scheduler) ─────────────────────────────────────
 function startLiveRounds(fx) {
   // "Kickoff" is one round out, so the first window is immediately bettable
@@ -533,6 +547,24 @@ async function renderTerrace(stage) {
   busy(invite.querySelector("#setname"), () => setName(invite.querySelector("#displayname").value));
   busy(invite.querySelector("#auth"), () => authorizeWriter(invite.querySelector("#authk").value));
   stage.appendChild(invite);
+
+  // Create your own market — the protocol isn't football-only. Any peer opens a
+  // market on anything (a question + its outcomes) and shares this terrace with
+  // their crowd; the same crowd oracle settles it by attestation.
+  const custom = h(`<div class="card stack">
+    <h2>Create your own market</h2>
+    <p class="muted">Not just football — ask anything. Your crowd settles it by attestation.</p>
+    <input id="custom-title" placeholder="Question, e.g. Will we ship by Friday?" />
+    <input id="custom-outcomes" value="YES, NO" placeholder="outcomes, comma-separated" />
+    <div class="row tight"><input id="custom-mins" type="number" min="1" step="1" value="60" style="width:6em" /><span class="muted">min to close</span></div>
+    <button class="ghost" id="custom-create">Open market</button>
+  </div>`);
+  busy(custom.querySelector("#custom-create"), () => openCustomMarket(
+    custom.querySelector("#custom-title").value,
+    custom.querySelector("#custom-outcomes").value,
+    custom.querySelector("#custom-mins").value,
+  ));
+  stage.appendChild(custom);
 
   // Open a market — the full catalogue per fixture (collapsed so the whole
   // bracket fits), each option a tappable button carrying the exact factory spec.

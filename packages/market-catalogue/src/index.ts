@@ -76,6 +76,47 @@ export function correctScore(maxGoals: number): MarketSpec {
   };
 }
 
+// ── Custom markets: any peer opens a market on anything ──────────────────────
+
+/** Fold-level caps on a market's shape, mirrored here so the UI can never build
+ *  a spec the `apply` fold would silently drop. Kept in lock-step with
+ *  `packages/terrace-base/src/apply.ts`. */
+export const CUSTOM_MARKET_LIMITS = {
+  titleMax: 200,
+  outcomeMax: 64,
+  minOutcomes: 2,
+  maxOutcomes: 256,
+} as const;
+
+/**
+ * A market on any question, with a title and 2–256 free-form outcomes. Football
+ * is a content skin; this is the protocol showing through — the same signed
+ * `market` message, the same parimutuel kernel, the same crowd oracle. Inputs are
+ * trimmed and validated against the exact caps the fold enforces, so a spec this
+ * returns is guaranteed to survive `apply`. Throws (never returns a dead spec) on
+ * anything the fold would reject — the caller shows the message.
+ */
+export function customMarket(title: string, outcomes: readonly string[]): MarketSpec {
+  const t = title.trim();
+  const outs = outcomes.map((o) => o.trim()).filter((o) => o.length > 0);
+  if (t.length === 0) throw new Error("customMarket: title must not be empty");
+  if (t.length > CUSTOM_MARKET_LIMITS.titleMax)
+    throw new Error(`customMarket: title must be ≤${CUSTOM_MARKET_LIMITS.titleMax} chars`);
+  if (outs.length < CUSTOM_MARKET_LIMITS.minOutcomes)
+    throw new Error(`customMarket: need at least ${CUSTOM_MARKET_LIMITS.minOutcomes} outcomes`);
+  if (outs.length > CUSTOM_MARKET_LIMITS.maxOutcomes)
+    throw new Error(`customMarket: at most ${CUSTOM_MARKET_LIMITS.maxOutcomes} outcomes`);
+  if (outs.some((o) => o.length > CUSTOM_MARKET_LIMITS.outcomeMax))
+    throw new Error(`customMarket: each outcome must be ≤${CUSTOM_MARKET_LIMITS.outcomeMax} chars`);
+  if (new Set(outs).size !== outs.length) throw new Error("customMarket: outcomes must be unique");
+  return { kind: "custom", params: { title: t, outcomes: outs } };
+}
+
+/** The one-tap common case: a YES/NO market on any question. */
+export function binaryMarket(title: string): MarketSpec {
+  return customMarket(title, ["YES", "NO"]);
+}
+
 // ── Recurring micro-round scheduler ──────────────────────────────────────────
 
 export interface MicroRound {

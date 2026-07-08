@@ -5,6 +5,9 @@ import {
   goalInWindow,
   firstScorer,
   correctScore,
+  customMarket,
+  binaryMarket,
+  CUSTOM_MARKET_LIMITS,
   scheduleMicroRounds,
   nextOpenRound,
   liveRound,
@@ -55,6 +58,41 @@ describe("correct score grid", () => {
     expect(m.params.outcomes).toContain("0-0");
     expect(m.params.outcomes).toContain("2-2");
     expect(m.params.outcomes).toHaveLength(9); // 3x3
+  });
+});
+
+describe("custom markets (the protocol, not football)", () => {
+  test("builds a custom-kind market from a title and free-form outcomes", () => {
+    const m = customMarket("Who ships the release?", ["Ana", "Bo", "Cai"]);
+    expect(m.kind).toBe("custom");
+    expect(m.params.title).toBe("Who ships the release?");
+    expect(m.params.outcomes).toEqual(["Ana", "Bo", "Cai"]);
+  });
+
+  test("trims the title and every outcome, dropping blank outcomes", () => {
+    const m = customMarket("  Ship Friday?  ", [" YES ", "NO", "  "]);
+    expect(m.params.title).toBe("Ship Friday?");
+    expect(m.params.outcomes).toEqual(["YES", "NO"]);
+  });
+
+  test("binaryMarket is the one-tap YES/NO case", () => {
+    expect(binaryMarket("Rain tomorrow?").params.outcomes).toEqual(["YES", "NO"]);
+  });
+
+  test("rejects an empty title", () => {
+    expect(() => customMarket("   ", ["YES", "NO"])).toThrow(/title/);
+  });
+
+  test("rejects fewer than two distinct outcomes", () => {
+    expect(() => customMarket("Q", ["ONLY"])).toThrow(/at least/);
+    expect(() => customMarket("Q", ["YES", "YES"])).toThrow(/unique/);
+  });
+
+  test("enforces the fold's caps so a built spec always survives apply", () => {
+    expect(() => customMarket("x".repeat(CUSTOM_MARKET_LIMITS.titleMax + 1), ["YES", "NO"])).toThrow(/title/);
+    expect(() => customMarket("Q", ["YES", "y".repeat(CUSTOM_MARKET_LIMITS.outcomeMax + 1)])).toThrow(/64/);
+    const tooMany = Array.from({ length: CUSTOM_MARKET_LIMITS.maxOutcomes + 1 }, (_, i) => `o${i}`);
+    expect(() => customMarket("Q", tooMany)).toThrow(/at most/);
   });
 });
 

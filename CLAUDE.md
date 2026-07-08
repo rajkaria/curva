@@ -14,7 +14,8 @@ Per-feature context lives under `docs/context/`; the router loads the doc whose
 
 - Gates: `npm run check` (typecheck + lint + test), `npm run build`, `npm run demo`.
   Node ≥20.19/22.12/24 (default local `node` is EOL 21.7.2 — use brew node@20/25).
-- Status: S0–S14 done, 237 tests green, on `origin/main`. Renamed TIFO→Curva; the
+- Status: S0–S14 done + **custom markets** (any peer opens a market on anything,
+  not just football), 250 tests green, on `origin/main`. Renamed TIFO→Curva; the
   `web/` site is live at https://curva-rouge.vercel.app (+ https://curva.playhunch.xyz).
   Next: clickable browser demo. Remaining launch items are human-only — see
   [docs/SUBMISSION.md](docs/SUBMISSION.md).

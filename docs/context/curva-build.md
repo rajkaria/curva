@@ -28,9 +28,20 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   stand, NOT the tifo/choreographed display). Committed + pushed: `origin/main`
   @ `4afc639` (258 subs/69 files). Repo renamed to **github.com/rajkaria/curva**,
   git remote URL updated; repo public, MIT.
-- **S0–S14 DONE and on `origin/main`** — 237 tests green. Roadmap S15–S16 in
+- **S0–S14 DONE and on `origin/main`** — 250 tests green. Roadmap S15–S16 in
   [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/). The former
   submission items "push to main" + "confirm repo public" are now DONE.
+- **Custom markets (2026-07-08, not football).** Any peer can now open a market on
+  ANY question and share the terrace with their crowd — the football skin coming
+  off. Minimal by design (showcase now, harden later): one new `"custom"`
+  `MarketKind`, `customMarket`/`binaryMarket` factories, a `buildCustomMarket`
+  parse+validate helper in `terrace-ui`, and a "Create your own market" form in the
+  app. Resolution is UNCHANGED — the same dual-⅔ crowd oracle settles it by manual
+  attestation (no ASR). The whole money path (bets/pools/attest/quorum/payouts) was
+  already outcome-agnostic; the ONLY football lock was the `KINDS` whitelist +
+  catalogue. +13 tests incl. an e2e proof a non-football market resolves + conserves.
+  Deliberately NOT built: designated-resolver mode, external oracles, cross-terrace
+  discovery — the "harden later" list.
 - **Landing + docs site LIVE.** `web/` = self-contained static (no build):
   `index.html` (landing, redesigned) + `docs.html` (full protocol/architecture/
   oracle/trust docs) + `README.md` (deploy steps). Public at
@@ -46,7 +57,7 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   prod — that's how the redesign was live before it was ever merged; fixed
   2026-07-08, prod == `origin/main`). TODO in `web/index.html`: the "Watch the
   demo" button `href="#"` awaits the YouTube URL.
-- **237 tests green** (property + fuzz + e2e + jsdom; +20 in S14). Gates all
+- **250 tests green** (property + fuzz + e2e + jsdom; +20 in S14, +13 custom markets). Gates all
   pass: `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline → converged/resolved/conserved/square).
   CI runs all three + e2e smoke on **Node 22**. Note: `lint` covers `apps` too.
@@ -77,7 +88,16 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Recent changes — packages and why
 
-- **`web/` (NEW, 2026-07-08)** — the public marketing site: `index.html` (landing),
+- **Custom markets (NEW, 2026-07-08)** — the general-platform unlock. `protocol.ts`:
+  `"custom"` added to `MarketKind`. `apply.ts`: `"custom"` added to the `KINDS`
+  whitelist (the one line that gated football-only; the fold already validated
+  title/outcomes structurally). `market-catalogue`: `customMarket(title, outcomes)`
+  + `binaryMarket(title)` + `CUSTOM_MARKET_LIMITS`, guards mirroring the fold so the
+  UI can't build a spec `apply` drops. `terrace-ui/vm.ts`: `parseOutcomes` +
+  `buildCustomMarket(draft)→{ok,spec}|{ok:false,error}` (pure, tested, peer text stays
+  RAW). `apps/terrace/app.js`: a "Create your own market" card (title/outcomes/
+  minutes) + `openCustomMarket`. Tests: +6 catalogue, +2 fold, +4 vm, +1 e2e settle.
+- **`web/` (2026-07-08)** — the public marketing site: `index.html` (landing),
   `docs.html` (10-section docs: overview/how-it-works/CRDT-insight/architecture/
   tracks/oracle/trust/proofs/run/FAQ), `README.md` (Vercel deploy steps). Vanilla
   self-contained HTML/CSS, no build, theme-matched to the app's `#0b0c1a` navy +

@@ -28,6 +28,7 @@ import { resolveMarket, tallyBreakdown, type Resolution } from "@curva/crowd-ora
 import { fallbackQuip, renderForViewer, type PoolSummary, type Translator } from "@curva/qvac-surfaces";
 import {
   correctScore,
+  customMarket,
   firstScorer,
   goalInWindow,
   matchResult,
@@ -556,6 +557,44 @@ export function marketPickerVm(fx: FixtureLike): MarketPickerOptionVm[] {
   if (squad.length > 0) options.push({ label: "First scorer", spec: firstScorer(squad) });
   options.push({ label: "Correct score", spec: correctScore(3) });
   return options;
+}
+
+// ── custom markets: any peer opens a market on anything (general platform) ────
+
+/** Split a free-text outcomes box (newline- or comma-separated) into clean keys.
+ *  Deduping and cap enforcement happen in {@link customMarket} — this only tokenizes. */
+export function parseOutcomes(raw: string): string[] {
+  return raw
+    .split(/[\n,]/)
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0);
+}
+
+/** What the create-market form holds. Outcomes are one free-text box (a line or a
+ *  comma each) so the UI stays a title + a textarea + a duration. */
+export interface CustomMarketDraft {
+  readonly title: string;
+  readonly outcomesText: string;
+}
+
+/** Either a signable spec or a human-readable reason the draft is invalid — the
+ *  app renders one or the other, and never signs a market the fold would drop. */
+export type CustomMarketResult =
+  | { readonly ok: true; readonly spec: MarketSpec }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * Turn a user's draft into a signable `custom` market spec, or a UI error.
+ * Delegates every rule to {@link customMarket}, whose caps mirror the fold — so
+ * "valid here" means "survives `apply`". Peer text stays RAW in the returned spec
+ * (title/outcomes); escaping happens once, later, in the html layer.
+ */
+export function buildCustomMarket(draft: CustomMarketDraft): CustomMarketResult {
+  try {
+    return { ok: true, spec: customMarket(draft.title, parseOutcomes(draft.outcomesText)) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "invalid market" };
+  }
 }
 
 // ── micro-rounds: the live-demo killer, planned deterministically (F2) ────────

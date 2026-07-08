@@ -21,7 +21,10 @@ export type MarketKind =
   | "total-goals"
   | "goal-in-window"
   | "first-scorer"
-  | "correct-score";
+  | "correct-score"
+  // Not football: any peer can open a market on anything and share it with their
+  // crowd. Title + free-form outcomes only; settles through the same crowd oracle.
+  | "custom";
 
 export interface MarketParams {
   /** Human label, e.g. "France vs Brazil — Result". */

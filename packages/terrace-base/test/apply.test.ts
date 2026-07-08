@@ -234,6 +234,45 @@ describe("seq determinism — the counter lives in the view, not the process", (
   });
 });
 
+describe("fold — custom markets (any peer, any question, not football)", () => {
+  const customMkt = (
+    id: Identity,
+    marketId: string,
+    cutoffAt: number,
+    title: string,
+    outcomes: readonly string[],
+    ts = 2,
+  ): Msg =>
+    signMessage(
+      { t: "market", v: 1, author: id.idKey, marketId, kind: "custom", params: { title, outcomes }, cutoffAt, feeBps: 0, ts },
+      id.privKey,
+    );
+
+  test("a custom-kind market is accepted and stored with its free-form outcomes", async () => {
+    const kv = await foldMessages([
+      hello(ana, "ana"),
+      customMkt(ana, "c1", 1000, "Will we ship by Friday?", ["YES", "NO"]),
+    ]);
+    const m = await readMarket(kv, "c1");
+    expect(m).toMatchObject({ kind: "custom", opener: ana.idKey });
+    expect(m?.params.outcomes).toEqual(["YES", "NO"]);
+  });
+
+  test("bets and attests key off the custom market's own outcomes; strangers are dropped", async () => {
+    const kv = await foldMessages([
+      hello(ana, "ana"),
+      hello(bo, "bo"),
+      customMkt(ana, "c1", 1000, "Best pizza?", ["MARGHERITA", "PEPPERONI", "HAWAIIAN"]),
+      bet(ana, "c1", "PEPPERONI", 10n, "n1", 100),
+      bet(bo, "c1", "NOPE", 10n, "n2", 100), // not a listed outcome → dropped by the fold
+      attest(ana, "c1", "PEPPERONI", 0.9, 200),
+      attest(bo, "c1", "ATLANTIS", 0.9, 200), // not a listed outcome → dropped by the fold
+    ]);
+    expect(Object.keys(await readPools(kv, "c1"))).toEqual(["PEPPERONI"]);
+    expect([...(await readAttestations(kv, "c1")).values()].map((a) => a.outcomeKey)).toEqual(["PEPPERONI"]);
+  });
+});
+
 describe("fold — field validation (hostile payloads die at the protocol layer)", () => {
   const sign = (unsigned: Record<string, unknown>, id: Identity): Msg =>
     signMessage(unsigned as unknown as UnsignedMsg, id.privKey);

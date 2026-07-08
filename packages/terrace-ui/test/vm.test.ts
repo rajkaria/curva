@@ -22,6 +22,7 @@ import {
   DEMO_BANNER,
   GAFFER_IDLE,
   LANGS,
+  buildCustomMarket,
   chatVm,
   escrowVm,
   gafferPoolVm,
@@ -32,6 +33,7 @@ import {
   marketVm,
   microRoundMarketId,
   peerVm,
+  parseOutcomes,
   planMicroRounds,
   pnlVm,
   positionVm,
@@ -681,5 +683,35 @@ describe("recentTerracesVm — one-tap rejoin list (F6)", () => {
       lastSeen: now - i * 1000,
     }));
     expect(recentTerracesVm(many, now, 6)).toHaveLength(6);
+  });
+});
+
+describe("custom market draft → signable spec (the create-market form)", () => {
+  test("parseOutcomes tokenizes on commas and newlines, trimming and dropping blanks", () => {
+    expect(parseOutcomes("YES, NO")).toEqual(["YES", "NO"]);
+    expect(parseOutcomes(" Ana \n Bo \n\n Cai ,")).toEqual(["Ana", "Bo", "Cai"]);
+  });
+
+  test("a valid draft yields a custom spec the fold will accept", () => {
+    const r = buildCustomMarket({ title: "Will we ship by Friday?", outcomesText: "YES, NO" });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.spec.kind).toBe("custom");
+      expect(r.spec.params.outcomes).toEqual(["YES", "NO"]);
+    }
+  });
+
+  test("peer text stays RAW in the spec (escaping is the html layer's job)", () => {
+    const r = buildCustomMarket({ title: "<b>hi</b>", outcomesText: "<i>a</i>, b" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.spec.params.title).toBe("<b>hi</b>");
+  });
+
+  test("an invalid draft returns a UI error instead of throwing", () => {
+    expect(buildCustomMarket({ title: "  ", outcomesText: "YES, NO" })).toMatchObject({ ok: false });
+    expect(buildCustomMarket({ title: "Q", outcomesText: "ONLYONE" })).toMatchObject({ ok: false });
+    const dup = buildCustomMarket({ title: "Q", outcomesText: "YES, YES" });
+    expect(dup.ok).toBe(false);
+    if (!dup.ok) expect(dup.error).toMatch(/unique/);
   });
 });
