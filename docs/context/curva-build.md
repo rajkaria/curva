@@ -32,12 +32,20 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/). The former
   submission items "push to main" + "confirm repo public" are now DONE.
 - **Landing + docs site LIVE.** `web/` = self-contained static (no build):
-  `index.html` (landing) + `docs.html` (full protocol/architecture/oracle/trust
-  docs) + `README.md` (deploy steps). Deployed via Vercel CLI from `web/` to
-  project **`curva`** (scope `rajkaria67-1831s-projects`); public at
-  **https://curva-rouge.vercel.app** (HTTP 200) + `/docs.html`. For git-auto-deploy,
-  set Root Directory=`web` in the dashboard. TODO in `web/index.html`: the
-  "Watch the demo" button `href="#"` awaits the YouTube URL.
+  `index.html` (landing, redesigned) + `docs.html` (full protocol/architecture/
+  oracle/trust docs) + `README.md` (deploy steps). Public at
+  **https://curva-rouge.vercel.app** + custom **https://curva.playhunch.xyz**
+  (both HTTP 200) + `/docs.html`, project **`curva`** (scope
+  `rajkaria67-1831s-projects`).
+  **Deploy = git only.** The Vercel project is git-connected to
+  `github.com/rajkaria/curva`; **push to `main` auto-deploys prod** — that is the
+  only prod path. Repo-root [`vercel.json`](../../vercel.json)
+  (`outputDirectory: web`, skip install/build) serves the static folder from the
+  repo root, so **leave the dashboard Root Directory at default (repo root)** and
+  **never `vercel --prod` by hand** (CLI uploads local files past git and drifts
+  prod — that's how the redesign was live before it was ever merged; fixed
+  2026-07-08, prod == `origin/main`). TODO in `web/index.html`: the "Watch the
+  demo" button `href="#"` awaits the YouTube URL.
 - **237 tests green** (property + fuzz + e2e + jsdom; +20 in S14). Gates all
   pass: `npm run check` (typecheck + lint + test), `npm run build` (→ dist),
   `npm run demo` (full headless pipeline → converged/resolved/conserved/square).
