@@ -28,9 +28,12 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   stand, NOT the tifo/choreographed display). Committed + pushed: `origin/main`
   @ `4afc639` (258 subs/69 files). Repo renamed to **github.com/rajkaria/curva**,
   git remote URL updated; repo public, MIT.
-- **S0–S16 DONE — the whole audit roadmap is closed** ([IMPROVEMENTS.md](../IMPROVEMENTS.md)
-  traceability table all ✅). **296 tests green**; gates are `npm run check` /
-  `build` / `demo` / **`build:demo`** (the browser-demo bundle).
+- **S0–S16 DONE — the whole audit roadmap is closed, on `origin/main` @ `878d1ee`,
+  deployed to prod.** ([IMPROVEMENTS.md](../IMPROVEMENTS.md) traceability table all
+  ✅). **296 tests green**; gates are `npm run check` / `build` / `demo` /
+  **`build:demo`** (the browser-demo bundle). The live browser demo is verified
+  serving at **https://curva-rouge.vercel.app/demo/** (HTTP 200, bundle 200,
+  banner + landing CTA confirmed post-deploy 2026-07-13).
 - **S15 (2026-07-13): zero-install browser demo + one-tap pairing.**
   `web/demo/` serves the REAL `apps/terrace/app.js` over `MemoryTerraceNode`
   (same fold, digest-proven vs `foldMessages`) with three scripted co-fan bots
@@ -237,8 +240,9 @@ If you touch anything the demo bundles (app.js, terrace-ui, terrace-base,
 fixtures), re-run `npm run build:demo` and commit the regenerated
 `web/demo/bundle.js` — the Vercel deploy serves the committed file as-is.
 
-**Branch:** S15+S16 built on worktree branch `claude/curva-improvements-2c685e`
-(from `f33701a`). Merge to `main` to deploy the demo live (git-only deploy).
+**Branch:** S15+S16 fast-forwarded to `origin/main` @ `878d1ee` (from `f33701a`,
+pushed from worktree `claude/curva-improvements-2c685e`) and auto-deployed to
+prod — demo verified live. Start next from a fresh worktree off `main`.
 
 **Human-only (see SUBMISSION.md):**
 1. Add the **subdomain** in Vercel → project `curva` → Settings → Domains.
