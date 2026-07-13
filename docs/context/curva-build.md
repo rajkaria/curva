@@ -11,7 +11,7 @@ globs:
   - "vitest.config.ts"
   - "eslint.config.js"
   - "web/**"
-updated: 2026-07-08  # renamed TIFO→Curva; landing+docs site live on Vercel; browser demo next
+updated: 2026-07-13  # S15+S16 done: browser demo at web/demo/, one-tap pairing, trust hardening; 296 tests
 ---
 
 # Curva — build context
@@ -28,9 +28,30 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   stand, NOT the tifo/choreographed display). Committed + pushed: `origin/main`
   @ `4afc639` (258 subs/69 files). Repo renamed to **github.com/rajkaria/curva**,
   git remote URL updated; repo public, MIT.
-- **S0–S14 DONE and on `origin/main`** — 250 tests green. Roadmap S15–S16 in
-  [IMPROVEMENTS.md](../IMPROVEMENTS.md) + [docs/plans/](../plans/). The former
-  submission items "push to main" + "confirm repo public" are now DONE.
+- **S0–S16 DONE — the whole audit roadmap is closed** ([IMPROVEMENTS.md](../IMPROVEMENTS.md)
+  traceability table all ✅). **296 tests green**; gates are `npm run check` /
+  `build` / `demo` / **`build:demo`** (the browser-demo bundle).
+- **S15 (2026-07-13): zero-install browser demo + one-tap pairing.**
+  `web/demo/` serves the REAL `apps/terrace/app.js` over `MemoryTerraceNode`
+  (same fold, digest-proven vs `foldMessages`) with three scripted co-fan bots
+  (signed messages only) — verified end-to-end in a real browser: open →
+  bots join → custom market → bets → lock → 4/4 attest → 20s injected dispute
+  window → resolved → bots pay receipts. The bundle (`web/demo/bundle.js`,
+  esbuild over TS sources via the development condition, `npm run build:demo`)
+  is COMMITTED so the git-only Vercel deploy serves it; landing hero links it.
+  Pairing: a signed `curva/pair` request on a protomux channel over the
+  replication stream; opener gets an Approve card (`validatePairRequest`
+  unit-tested); copy buttons + vendored MIT `qrcode-generator` QR
+  (byte-identity test) round out U8. Runtime injection = `globalThis.CURVA_RUNTIME`
+  in app.js ({openNode, onNode, bannerText, disputeWindowMs}).
+- **S16 (2026-07-13): trust hardening, all opt-in.** `ReceiptVerifier`
+  (Fake + Rpc over `eth_getTransactionReceipt` + exact Transfer-log match) +
+  pure `squareStatus`/`squareSummary` → ✓✓ verified receipts in real mode
+  (`REAL_MODE` config in app.js; demo bit-identical). `resolveMarket` events-count
+  dispute window (`disputeWindow: {kind:"events",count}`; wallclock byte-identity
+  pinned by a 500-run property). `sealVault`/`openVault` (scrypt +
+  XChaCha20-Poly1305, versioned blob) + Vault card & launch unlock gate.
+  TRUST.md has a "Trust hardening (S16)" section.
 - **Custom markets (2026-07-08, not football).** Any peer can now open a market on
   ANY question and share the terrace with their crowd — the football skin coming
   off. Minimal by design (showcase now, harden later): one new `"custom"`
@@ -204,19 +225,20 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Next steps — specific, actionable
 
-**Code — the clickable browser demo (roadmap S15/T6):** the unfinished half of the
-site. A `web/demo/` esbuild bundle that replays the `npm run demo` scenario through
-the REAL `@curva/terrace-ui` on `FakeWallet` + `FakeAsr` (drive `MemoryKV` directly,
-no Pear/network — only `TerraceNode` is non-browser and a single-peer demo skips it),
-linked from the landing demo CTA. Then S15 pairing (BlindPairing) + S16 trust
-hardening per [IMPROVEMENTS.md](../IMPROVEMENTS.md).
+**Code roadmap is done (S0–S16).** What remains beyond the roadmap is genuinely
+optional: BlindPairing proper (the protomux handshake already kills the hex
+copy), Tier-3 SwarmVault (VISION.md), real-mode field test (fund a wallet, set
+`REAL_MODE` in app.js, watch ✓✓ receipts verify on-chain).
 
 **When you resume:** run gates with a supported Node (default `node` here is EOL
 21.7.2 and mis-collects the jsdom test):
 `PATH="/opt/homebrew/Cellar/node@20/20.20.2/bin:$PATH" npm run check`.
+If you touch anything the demo bundles (app.js, terrace-ui, terrace-base,
+fixtures), re-run `npm run build:demo` and commit the regenerated
+`web/demo/bundle.js` — the Vercel deploy serves the committed file as-is.
 
-**Branch:** this session's work is on `origin/main` @ `4afc639`, pushed from worktree
-branch `claude/goofy-poitras-fc8dcc`. Start next from a fresh worktree off `main`.
+**Branch:** S15+S16 built on worktree branch `claude/curva-improvements-2c685e`
+(from `f33701a`). Merge to `main` to deploy the demo live (git-only deploy).
 
 **Human-only (see SUBMISSION.md):**
 1. Add the **subdomain** in Vercel → project `curva` → Settings → Domains.

@@ -22,10 +22,12 @@
  * the adapters with no protocol change; the banner disappears automatically.
  * Pairing uses the spec-sanctioned paste-a-key flow (BlindPairing roadmap: S15).
  */
-import { TerraceNode, signMessage } from "@curva/terrace-base";
+import { TerraceNode, signMessage, readReceipts, buildPairRequest } from "@curva/terrace-base";
+import qrcode from "./vendor/qr.js";
 import {
   deriveVault, randomVault, isValidMnemonic,
   computeDeltas, minTransfers, settlementManifest, settleMyDebts, FakeWallet,
+  sealVault, openVault, isSealedVault, RpcVerifier, squareStatus, squareSummary,
 } from "@curva/wdk-vault";
 import { scheduleMicroRounds } from "@curva/market-catalogue";
 import { prefillAttestation, FakeAsr } from "@curva/crowd-oracle";
@@ -42,7 +44,7 @@ import {
 } from "@curva/terrace-ui";
 import { FIXTURES, STATS_BUNDLE, DEMO_TRANSCRIPT } from "../../fixtures/wc2026.js";
 
-const DISPUTE_WINDOW_MS = 10 * 60_000;
+const DISPUTE_WINDOW_MS = globalThis.CURVA_RUNTIME?.disputeWindowMs ?? 10 * 60_000;
 // Micro-rounds: a fresh 10-minute goal-in-window pool every 10 minutes, so the
 // terrace never runs out of something live to trade (the live-demo killer).
 const MICRO_ROUND_MS = 10 * 60_000;
@@ -66,16 +68,57 @@ const TEAM_EMOJI = {
 };
 const teamEmoji = (name) => TEAM_EMOJI[name] ?? "⚽";
 
-// ── Vault (persisted seed) ───────────────────────────────────────────────────
-function loadVault() {
-  let mnemonic = localStorage.getItem("curva.mnemonic");
+// Real mode (S16): set both fields (and fund the wallet) to enable on-chain
+// receipt verification (✓ claimed → ✓✓ verified). Empty = demo mode, disclosed
+// in-UI by the banner; the WDK wallet swap is the same config point.
+const REAL_MODE = { rpcUrl: "", usdtAddress: "" };
+
+// Runtime injection (S15/T6): the zero-install browser demo runs this exact
+// file over a MemoryTerraceNode by setting globalThis.CURVA_RUNTIME before
+// import — same UI, same VMs, same fold; only the transport is swapped (and
+// the banner says so). In the Pear app this is undefined and everything below
+// is the real Autobase/Hyperswarm path.
+const RUNTIME = globalThis.CURVA_RUNTIME ?? {};
+const openNode = RUNTIME.openNode ?? ((opts) => TerraceNode.open(opts));
+
+// ── Vault (persisted seed; optionally sealed at rest — S16) ──────────────────
+/** Unlock gate: a sealed seed never derives until the passphrase opens it. */
+function unlockVault(sealed) {
+  return new Promise((resolve) => {
+    const card = h(`<div class="card stack">
+      <h2>Unlock your vault</h2>
+      <p class="muted">Your seed is sealed at rest. Enter your passphrase.</p>
+      <div class="row"><input id="unlock-pw" type="password" placeholder="passphrase" /><button id="unlock">Unlock</button></div>
+    </div>`);
+    const input = card.querySelector("#unlock-pw");
+    const tryOpen = () => {
+      try {
+        resolve(openVault(sealed, input.value));
+      } catch {
+        input.value = "";
+        input.placeholder = "wrong passphrase — try again";
+      }
+    };
+    card.querySelector("#unlock").onclick = tryOpen;
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") tryOpen(); });
+    app.replaceChildren(card);
+    input.focus();
+  });
+}
+async function loadVault() {
+  const stored = localStorage.getItem("curva.mnemonic");
+  if (stored && isSealedVault(stored)) {
+    const mnemonic = await unlockVault(stored);
+    return { mnemonic, vault: deriveVault(mnemonic) };
+  }
+  let mnemonic = stored;
   if (!mnemonic || !isValidMnemonic(mnemonic)) {
     mnemonic = randomVault().mnemonic;
     localStorage.setItem("curva.mnemonic", mnemonic);
   }
   return { mnemonic, vault: deriveVault(mnemonic) };
 }
-const { vault } = loadVault();
+const { mnemonic: seedMnemonic, vault } = await loadVault();
 
 // ── Runtime state ─────────────────────────────────────────────────────────────
 let node = null;
@@ -88,9 +131,17 @@ let liveRounds = null;
 // Gaffer model: lazy QVAC LLM + its load state (off | loading | ready | failed).
 let gafferLlm = null;
 let gafferState = "off";
+// Pairing requests awaiting a human tap (S15) — validated + deduped in terrace-base.
+let pendingPairs = [];
 const wallet = new FakeWallet(vault.wallet.address, 1000n * 1_000_000n); // demo-funded
 // Demo mode is *derived*, not asserted: the banner shows iff the fakes are live.
 const demoMode = wallet instanceof FakeWallet;
+// On-chain receipt verification (S16): real mode only — a fake txid can never
+// earn a ✓✓, and verification failures degrade to "claimed", never "verified".
+const receiptVerifier =
+  !demoMode && REAL_MODE.rpcUrl && REAL_MODE.usdtAddress ? new RpcVerifier(REAL_MODE) : null;
+// txid → verdict. Confirmed/mismatch are final; pending re-queries next render.
+const verdictCache = new Map();
 
 const shortId = () => "fan-" + vault.identity.idKey.slice(2, 6);
 // Local, non-replicated UI prefs (name + chat language), persisted.
@@ -198,9 +249,20 @@ async function rejoinTerrace(entry) {
 // ── Terrace lifecycle ─────────────────────────────────────────────────────────
 const HEX64 = /^[0-9a-f]{64}$/i;
 
+/** Surface validated pairing requests for one-tap approval (S15). */
+function watchPairRequests() {
+  node.onPairRequest((req) => {
+    pendingPairs.push(req);
+    toast(`Pairing request from ${req.name}`);
+    markDirty();
+  });
+}
+
 async function openTerrace() {
-  node = await TerraceNode.open({ storagePath: storageBase + "/terrace-host" });
+  node = await openNode({ storagePath: storageBase + "/terrace-host" });
   role = "opener";
+  RUNTIME.onNode?.(node);
+  watchPairRequests();
   await node.joinSwarm();
   await emitHello();
   rememberTerrace(node.key(), "Your terrace", "opener");
@@ -211,9 +273,13 @@ async function openTerrace() {
 async function joinTerrace(inviteKey) {
   const key = inviteKey.trim();
   if (!HEX64.test(key)) return toast("That doesn't look like an invite key (64 hex chars)");
-  node = await TerraceNode.open({ storagePath: storageBase + "/terrace-" + key.slice(0, 16), inviteKey: key });
+  node = await openNode({ storagePath: storageBase + "/terrace-" + key.slice(0, 16), inviteKey: key });
   role = "joiner";
+  RUNTIME.onNode?.(node);
+  watchPairRequests(); // an authorized joiner can approve the next mate
   await node.joinSwarm();
+  // Announce ourselves for one-tap approval — no more hand-copied writer keys.
+  node.requestPairing(buildPairRequest(vault.identity, node.localWriterKey(), displayName, Date.now()));
   rememberTerrace(key, "Terrace " + key.slice(0, 8), "joiner");
   screen = "terrace";
   startPolling();
@@ -296,7 +362,7 @@ async function updateHeader() {
     demoMode,
   });
   headWidgets.innerHTML = headerWidgetsHtml(vm);
-  banner.innerHTML = demoMode ? demoBannerHtml() : "";
+  banner.innerHTML = demoMode ? demoBannerHtml(RUNTIME.bannerText) : "";
 }
 
 let polling = null;
@@ -445,21 +511,47 @@ async function attestManual(vm, outcomeKey) {
   if (ok) toast(`Attested ${outcomeKey}`);
 }
 
-async function settle(vm) {
-  const s = await settlementVm(node.view(), vm.marketId);
-  const manifest = computePayouts({
-    bets: s.bets,
-    resolution: { kind: "outcome", outcomeKey: vm.resolution.outcomeKey },
-    feeBps: vm.feeBps,
-  });
-  const transfers = settlementManifest(
+/** The canonical wallet-level transfer manifest for a resolved market — settle
+ *  pays from it and receipt verification checks claims against it, so the two
+ *  can never disagree about who owes whom. */
+function buildTransfers(s, outcomeKey, feeBps) {
+  const manifest = computePayouts({ bets: s.bets, resolution: { kind: "outcome", outcomeKey }, feeBps });
+  return settlementManifest(
     minTransfers(computeDeltas(manifest, s.stakes)).map((t) => ({ from: s.walletOf(t.from), to: s.walletOf(t.to), amount: t.amount })),
   );
+}
+
+async function settle(vm) {
+  const s = await settlementVm(node.view(), vm.marketId);
+  const transfers = buildTransfers(s, vm.resolution.outcomeKey, vm.feeBps);
   const receipts = await settleMyDebts(transfers, wallet); // only my own debts
   for (const r of receipts) await emit({ t: "receipt", marketId: vm.marketId, manifestLine: r.line, txid: r.txid });
   await updateHeader(); // balance moved
   if (receipts.length) { toast(`Paid ${receipts.length} transfer(s)`); celebrate("🎉"); }
   else toast("Nothing to pay");
+}
+
+/** ✓✓ receipts (S16, real mode): verify each claimed txid against the chain. */
+async function receiptsLine(kv, vm, s) {
+  if (!receiptVerifier || vm.resolution.status !== "resolved") {
+    return `Receipts: ${vm.receipts} line(s) settled ✓`;
+  }
+  const transfers = buildTransfers(s, vm.resolution.outcomeKey, vm.feeBps);
+  const rows = await readReceipts(kv, vm.marketId);
+  const verdicts = new Map();
+  for (const r of rows) {
+    if (!r.txid) continue;
+    let v = verdictCache.get(r.txid);
+    if (v === undefined || v === "pending") {
+      const t = transfers[r.line];
+      // A receipt for a line outside the manifest claims a transfer that
+      // doesn't exist — that is a mismatch, not a verification gap.
+      v = t ? await receiptVerifier.verify({ txid: r.txid, from: t.from, to: t.to, amount: t.amount }) : "mismatch";
+      verdictCache.set(r.txid, v);
+    }
+    verdicts.set(r.txid, v);
+  }
+  return `Receipts: ${squareSummary(squareStatus(transfers.length, rows, verdicts))}`;
 }
 
 async function sendChat(text) {
@@ -469,6 +561,27 @@ async function sendChat(text) {
 
 // ── Rendering: VMs → DOM ─────────────────────────────────────────────────────
 function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+
+// ── Pairing UX helpers (S15) ─────────────────────────────────────────────────
+/** A 📋 button that copies `value` and confirms with a ✓ (never re-renders). */
+function copyBtn(value, label) {
+  const b = h(`<button class="ghost" style="flex:0 0 auto;padding:4px 10px;font-size:12px">📋 ${esc(label)}</button>`);
+  busy(b, async () => {
+    await navigator.clipboard.writeText(value);
+    const was = b.textContent;
+    b.textContent = "✓ copied";
+    setTimeout(() => { b.textContent = was; }, 1200);
+  });
+  return b;
+}
+/** QR svg for OUR OWN invite key (validated hex — never peer data). */
+function qrSvg(text) {
+  if (!HEX64.test(text)) return "";
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag(4, 8);
+}
 
 // Input values survive the swap: snapshot by stable id, restore after —
 // but only within the same screen+market (never leak a stake across markets).
@@ -518,6 +631,36 @@ function renderHome(stage) {
   busy(card.querySelector("#join"), () => joinTerrace(card.querySelector("#invite").value));
   stage.appendChild(card);
 
+  // Vault at rest (S16): opt-in passphrase sealing. The demo default stays
+  // plaintext and says so; sealing swaps the localStorage seed for a versioned
+  // scrypt+XChaCha20-Poly1305 blob and gates the next launch on the passphrase.
+  const sealed = isSealedVault(localStorage.getItem("curva.mnemonic") ?? "");
+  const vaultCard = h(`<div class="card stack">
+    <h2>Vault</h2>
+    <div class="row"><span class="pill${sealed ? " ok" : ""}">${sealed ? "🔒 seed sealed at rest" : "demo seed — unencrypted"}</span></div>
+    ${sealed
+      ? `<div class="row"><input id="seal-cur" type="password" placeholder="current passphrase" /><input id="seal-new" type="password" placeholder="new passphrase" /><button class="ghost" id="reseal">Change</button></div>`
+      : `<div class="row"><input id="seal-pw" type="password" placeholder="passphrase" /><button class="ghost" id="seal">Seal vault</button></div>`}
+    <p class="muted">Sealing encrypts your seed with your passphrase (scrypt + XChaCha20-Poly1305); you'll unlock at launch. There is no recovery without it.</p>
+  </div>`);
+  if (sealed) {
+    busy(vaultCard.querySelector("#reseal"), async () => {
+      const cur = vaultCard.querySelector("#seal-cur").value;
+      const next = vaultCard.querySelector("#seal-new").value;
+      openVault(localStorage.getItem("curva.mnemonic") ?? "", cur); // throws on wrong passphrase
+      localStorage.setItem("curva.mnemonic", sealVault(seedMnemonic, next));
+      toast("Passphrase changed 🔒");
+    });
+  } else {
+    busy(vaultCard.querySelector("#seal"), async () => {
+      const pw = vaultCard.querySelector("#seal-pw").value;
+      localStorage.setItem("curva.mnemonic", sealVault(seedMnemonic, pw));
+      toast("Vault sealed 🔒");
+      markDirty();
+    });
+  }
+  stage.appendChild(vaultCard);
+
   // Recent terraces — one-tap rejoin. Durable storage dirs (S11) make this real.
   const recents = recentTerracesVm(loadRecents(), Date.now());
   if (recents.length) {
@@ -540,13 +683,38 @@ async function renderTerrace(stage) {
     <h2>This terrace</h2>
     <div class="row"><span class="pill">${esc(t.role)}</span><span class="pill">${t.writable ? "writer" : "read-only"}</span></div>
     <div class="row"><input id="displayname" value="${esc(displayName)}" placeholder="your name" /><button class="ghost" id="setname">Set name</button></div>
-    <div><div class="muted">Invite key (share to let mates join)</div><div class="mono">${esc(t.invite)}</div></div>
-    <div><div class="muted">Your writer key (send to the host to be authorized)</div><div class="mono">${esc(t.writerKey)}</div></div>
+    <div><div class="muted">Invite key (share to let mates join)</div><div class="mono">${esc(t.invite)}</div><div class="row" id="invite-actions" style="margin-top:6px"></div></div>
+    <details><summary class="muted">Show invite QR</summary><div id="invite-qr" style="margin-top:8px;background:#fff;display:inline-block;border-radius:8px;line-height:0">${qrSvg(t.invite)}</div></details>
+    <div><div class="muted">Your writer key (mates get one-tap approval; paste stays as fallback)</div><div class="mono">${esc(t.writerKey)}</div><div class="row" id="writer-actions" style="margin-top:6px"></div></div>
     <div class="row"><input id="authk" placeholder="authorize a mate's writer key" /><button class="ghost" id="auth">Authorize</button></div>
   </div>`);
   busy(invite.querySelector("#setname"), () => setName(invite.querySelector("#displayname").value));
   busy(invite.querySelector("#auth"), () => authorizeWriter(invite.querySelector("#authk").value));
+  invite.querySelector("#invite-actions").appendChild(copyBtn(t.invite, "copy invite"));
+  invite.querySelector("#writer-actions").appendChild(copyBtn(t.writerKey, "copy writer key"));
   stage.appendChild(invite);
+
+  // Pairing requests (S15): signature-verified in terrace-base; one tap calls
+  // the same addWriter as the paste flow. Names are peer data — esc() as ever.
+  if (pendingPairs.length && t.writable) {
+    const pair = h(`<div class="card stack"><h2>Pairing requests</h2></div>`);
+    for (const req of pendingPairs) {
+      const row = h(`<div class="row"><span style="flex:1">Approve <b>${esc(req.name)}</b> <span class="muted mono">fan-${esc(req.author.slice(2, 6))}</span>?</span></div>`);
+      const ok = h(`<button>Approve</button>`);
+      busy(ok, async () => {
+        await node.addWriter(req.writerKey);
+        pendingPairs = pendingPairs.filter((p) => p !== req);
+        toast(`Authorized ${req.name} ✓`);
+        markDirty();
+      });
+      const no = h(`<button class="ghost">Ignore</button>`);
+      no.onclick = () => { pendingPairs = pendingPairs.filter((p) => p !== req); markDirty(); };
+      row.appendChild(ok);
+      row.appendChild(no);
+      pair.appendChild(row);
+    }
+    stage.appendChild(pair);
+  }
 
   // Create your own market — the protocol isn't football-only. Any peer opens a
   // market on anything (a question + its outcomes) and shares this terrace with
@@ -683,7 +851,7 @@ async function renderMarket(stage) {
     const manifest = computePayouts({ bets: s.bets, resolution: { kind: "outcome", outcomeKey: res.outcomeKey }, feeBps: vm.feeBps });
     resCard.appendChild(h(pnlHtml(pnlVm(manifest, s.stakes, me))));
   }
-  if (vm.receipts) resCard.appendChild(h(`<div class="square">Receipts: ${vm.receipts} line(s) settled ✓</div>`));
+  if (vm.receipts) resCard.appendChild(h(`<div class="square">${esc(await receiptsLine(kv, vm, s))}</div>`));
   stage.appendChild(resCard);
 
   // Attestation — live quorum standings + who voted, plus how to attest.

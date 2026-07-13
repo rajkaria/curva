@@ -49,8 +49,16 @@ Plans live in [docs/plans/](plans/); sprint log in [SPRINTS.md](SPRINTS.md).
 | **S12** ✅ | Render architecture + render tests (B2, T5, P1–P3) | [plans/s12-render.md](plans/s12-render.md) | view-model suite green in CI; zero input-wipe by construction |
 | **S13** ✅ | UX quick wins (U1–U7, U9) | [plans/s13-ux.md](plans/s13-ux.md) | demo banner + peer count + money surfaces render from view-models under test |
 | **S14** ✅ | Feature wiring (F1–F8) | [plans/s14-features.md](plans/s14-features.md) | every catalogue market kind openable; leaderboard from view |
-| **S15** | Pairing & zero-install demo (U8, T6) | [plans/s15-pairing-demo.md](plans/s15-pairing-demo.md) | auto-approve handshake; static browser demo builds |
-| **S16** | Trust hardening (T1, T2, T4) | [plans/s16-trust.md](plans/s16-trust.md) | receipt verify + encrypted seed + index-window all opt-in, tested |
+| **S15** ✅ | Pairing & zero-install demo (U8, T6) | [plans/s15-pairing-demo.md](plans/s15-pairing-demo.md) | auto-approve handshake; static browser demo builds |
+| **S16** ✅ | Trust hardening (T1, T2, T4) | [plans/s16-trust.md](plans/s16-trust.md) | receipt verify + encrypted seed + index-window all opt-in, tested |
 
 Execution order is S11 → S16. S12 depends on S11's app.js shape; S13–S15 build on
 S12's view-model layer; S16 is independent of S13–S15.
+
+**All six sprints have landed** — every audit finding above is closed. Two
+deliberate adaptations from the original plans, both recorded in
+[SPRINTS.md](SPRINTS.md): the browser demo lives at `web/demo/` (it deploys
+with the git-connected Vercel static site, so the landing CTA links a live
+URL) instead of the planned `apps/web/`, and the QR encoder is the vendored
+MIT `qrcode-generator` ESM build verified byte-identical to npm rather than a
+hand-rolled encoder.

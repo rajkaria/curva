@@ -87,9 +87,10 @@ export function renderCard(vm: MarketVm): string {
 
 // ── S13 surfaces: banner, header widgets, money, tally ────────────────────────
 
-/** The demo-mode honesty strip. Fixed copy — no peer strings, but still one place. */
-export function demoBannerHtml(): string {
-  return `<div class="banner">${esc(DEMO_BANNER)}</div>`;
+/** The demo-mode honesty strip. Our copy — no peer strings, but still escaped
+ *  in one place. The browser demo overrides the text to disclose its own fakes. */
+export function demoBannerHtml(text: string = DEMO_BANNER): string {
+  return `<div class="banner">${esc(text)}</div>`;
 }
 
 /** Header widgets: presence pill (amber at 0), balance, name, address. */

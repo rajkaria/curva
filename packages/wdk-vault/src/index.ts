@@ -11,5 +11,7 @@ export * from "./address.js";
 export * from "./derive.js";
 export * from "./netting.js";
 export * from "./settle.js";
+export * from "./verify.js";
+export * from "./seal.js";
 export { FakeWallet } from "./fake-wallet.js";
 export { WdkWallet, type WdkConfig } from "./wdk-adapter.js";

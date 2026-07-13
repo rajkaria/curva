@@ -12,13 +12,17 @@ Per-feature context lives under `docs/context/`; the router loads the doc whose
 
 ## Quick facts
 
-- Gates: `npm run check` (typecheck + lint + test), `npm run build`, `npm run demo`.
+- Gates: `npm run check` (typecheck + lint + test), `npm run build`, `npm run demo`,
+  `npm run build:demo` (regenerates the committed `web/demo/bundle.js`).
   Node ≥20.19/22.12/24 (default local `node` is EOL 21.7.2 — use brew node@20/25).
-- Status: S0–S14 done + **custom markets** (any peer opens a market on anything,
-  not just football), 250 tests green, on `origin/main`. Renamed TIFO→Curva; the
-  `web/` site is live at https://curva-rouge.vercel.app (+ https://curva.playhunch.xyz).
-  Next: clickable browser demo. Remaining launch items are human-only — see
-  [docs/SUBMISSION.md](docs/SUBMISSION.md).
+- Status: **S0–S16 done — the whole audit roadmap is closed.** 296 tests green.
+  Custom markets, one-tap pairing (signed protomux handshake + copy/QR), the
+  zero-install **browser demo at `web/demo/`** (real app.js over
+  MemoryTerraceNode + scripted co-fans, bundle committed), and S16 trust
+  hardening (✓✓ receipt verification, events-count dispute window, sealed
+  vault). `web/` live at https://curva-rouge.vercel.app (+
+  https://curva.playhunch.xyz); landing hero links `/demo/`. Remaining launch
+  items are human-only — see [docs/SUBMISSION.md](docs/SUBMISSION.md).
 - Deploy = git only: Vercel `curva` is git-connected; **push to `main` auto-deploys
   prod**. Repo-root `vercel.json` serves `web/`. Never `vercel --prod` by hand (it
   bypasses git and drifts prod). Details in [docs/context/curva-build.md](docs/context/curva-build.md).

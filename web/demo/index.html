@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Curva — live browser demo</title>
+  <meta name="description" content="The real Curva terrace UI running in your browser over an in-memory swarm — open a market, trade with the co-fans, watch the crowd oracle settle it." />
+  <style>
+    :root {
+      --bg: #0f1020; --panel: #1a1b2e; --panel-2: #23243d; --line: #2e2f4a;
+      --ink: #eef0ff; --muted: #9aa0c7; --home: #4ade80; --away: #f87171; --draw: #fbbf24;
+      --accent: #7c6cff; --good: #4ade80;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 15px/1.5 -apple-system, system-ui, sans-serif;
+      background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased;
+    }
+    .demo-note {
+      background: #23243d; border-bottom: 1px solid var(--line); color: var(--muted);
+      font-size: 12px; padding: 8px 14px; text-align: center;
+    }
+    .demo-note a { color: #34e39a; text-decoration: none; }
+    header {
+      display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+      border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5;
+    }
+    header .logo { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+    .head-widgets { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .head-widgets .who { text-align: right; font-size: 12px; color: var(--muted); }
+    .banner {
+      background: linear-gradient(90deg, rgba(251,191,36,.16), rgba(251,191,36,.05));
+      color: var(--draw); border-bottom: 1px solid var(--line);
+      text-align: center; padding: 6px 12px; font-size: 12px; font-weight: 600; letter-spacing: .3px;
+    }
+    .banner:empty { display: none; }
+    main { padding: 16px; max-width: 640px; margin: 0 auto; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+    .card h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    button {
+      background: var(--accent); color: white; border: 0; border-radius: 10px;
+      padding: 10px 14px; font-weight: 600; cursor: pointer; font-size: 14px;
+    }
+    button.ghost { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+    button:disabled { opacity: 0.45; cursor: default; }
+    input, select {
+      background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px; width: 100%; font-size: 14px;
+    }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row > * { flex: 1; }
+    .row.tight { gap: 6px; }
+    .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--panel-2); color: var(--muted); }
+    .pill.ok { background: rgba(74,222,128,.15); color: var(--good); }
+    .pill.warn { background: rgba(251,191,36,.18); color: var(--draw); }
+    .row.wrap { flex-wrap: wrap; }
+    .row.wrap > * { flex: 0 0 auto; }
+    .preview { font-size: 12px; margin-top: 4px; }
+    .pnl { font-weight: 700; margin-top: 4px; }
+    .warn { color: var(--draw); }
+    .tallyrow .pill { font-size: 10px; }
+    .celebrate {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 9; font-size: 40px; animation: pop 1.6s ease forwards;
+    }
+    @keyframes pop { 0% { transform: scale(.5); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+    .odds { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 10px; align-items: center; }
+    .bar { height: 8px; border-radius: 6px; background: var(--panel-2); overflow: hidden; }
+    .bar > span { display: block; height: 100%; transition: width .4s ease; }
+    .HOME { color: var(--home); } .AWAY { color: var(--away); } .DRAW { color: var(--draw); }
+    .bHOME { background: var(--home); } .bAWAY { background: var(--away); } .bDRAW { background: var(--draw); } .bYES { background: var(--home); } .bNO { background: var(--away); } .bOVER { background: var(--home); } .bUNDER { background: var(--away); }
+    .muted { color: var(--muted); }
+    .stack > * + * { margin-top: 8px; }
+    .chat { max-height: 180px; overflow-y: auto; }
+    .chat .line { padding: 4px 0; border-bottom: 1px solid var(--line); }
+    .gaffer { font-style: italic; color: var(--draw); }
+    details { border-top: 1px solid var(--line); padding-top: 6px; }
+    details:first-of-type { border-top: 0; padding-top: 0; }
+    summary { cursor: pointer; padding: 6px 0; font-weight: 600; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: "▸ "; color: var(--muted); }
+    details[open] > summary::before { content: "▾ "; }
+    .square { color: var(--good); font-weight: 700; }
+    .hidden { display: none; }
+    .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: var(--panel-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="demo-note">
+    You're driving the <b>real Curva UI</b> over an in-memory swarm with three scripted co-fans —
+    no install, honest fakes. The wire path (Autobase + Hyperswarm + real USDt) is the
+    <a href="../docs.html#run">Pear app</a>. <a href="../index.html">← back to curva</a>
+  </div>
+  <header>
+    <span class="logo">⚽ Curva</span>
+    <div class="head-widgets" id="head-widgets"></div>
+  </header>
+  <div class="banner" id="banner"></div>
+  <main id="app"></main>
+  <script type="module" src="./bundle.js"></script>
+</body>
+</html>

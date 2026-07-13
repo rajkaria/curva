@@ -127,15 +127,38 @@ export function quorumOutcome(
 
 export type Resolution =
   | { readonly status: "open" }
-  | { readonly status: "provisional"; readonly outcomeKey: string; readonly quorumAt: number; readonly finalizesAt: number }
+  | {
+      readonly status: "provisional";
+      readonly outcomeKey: string;
+      readonly quorumAt: number;
+      /** When a wallclock window closes; null under an events window (no clock). */
+      readonly finalizesAt: number | null;
+      /** Events window only: further quiet attestation events needed to finalize. */
+      readonly eventsRemaining?: number;
+    }
   | { readonly status: "resolved"; readonly outcomeKey: string; readonly quorumAt: number }
   | { readonly status: "voided"; readonly reason: string };
+
+/**
+ * How long a first quorum stays disputable (S16 T2). `wallclock` (the default,
+ * mates mode) trusts author timestamps: the market finalizes `ms` after the
+ * quorum's ts. `events` removes that last wall-clock trust: the market
+ * finalizes only after `count` further *linearized attestation events* arrive
+ * with no counter-quorum — progress is measured in signed log entries every
+ * peer replays identically, so no author clock can rush or stall finalization.
+ * TRUST.md recommends the events window for adversarial crowds.
+ */
+export type DisputeWindow =
+  | { readonly kind: "wallclock"; readonly ms: number }
+  | { readonly kind: "events"; readonly count: number };
 
 export interface ResolveInput {
   readonly events: readonly AttestationEvent[];
   readonly stakeByWriter: ReadonlyMap<string, bigint>;
   readonly now: number;
   readonly disputeWindowMs: number;
+  /** Optional hardened window; overrides `disputeWindowMs` when present. */
+  readonly disputeWindow?: DisputeWindow;
   readonly config?: QuorumConfig;
 }
 
@@ -154,6 +177,7 @@ export interface ResolveInput {
  */
 export function resolveMarket(input: ResolveInput): Resolution {
   const config = input.config ?? DEFAULT_QUORUM;
+  const window: DisputeWindow = input.disputeWindow ?? { kind: "wallclock", ms: input.disputeWindowMs };
   const ordered = [...input.events].sort((a, b) =>
     a.ts !== b.ts ? a.ts - b.ts : a.writer < b.writer ? -1 : a.writer > b.writer ? 1 : 0,
   );
@@ -161,14 +185,24 @@ export function resolveMarket(input: ResolveInput): Resolution {
   const tally = new Map<string, Attestation>();
   let quorumOut: string | null = null;
   let quorumAt = 0;
+  // Events window: attestation events applied after the quorum-forming batch.
+  let eventsSinceQuorum = 0;
   let i = 0;
 
   while (i < ordered.length) {
+    // Events window: if `count` further events have passed with no dispute,
+    // the market finalized *before* this batch — later events can no longer
+    // void it, exactly like a lapsed wallclock window. Checked at the top so
+    // batches that dilute the tally below quorum still burn down the window.
+    if (quorumOut !== null && window.kind === "events" && eventsSinceQuorum >= window.count) {
+      return { status: "resolved", outcomeKey: quorumOut, quorumAt };
+    }
     const ts = ordered[i]!.ts;
     // Apply every attestation stamped at this instant before evaluating.
     while (i < ordered.length && ordered[i]!.ts === ts) {
       const e = ordered[i]!;
       tally.set(e.writer, { outcomeKey: e.outcomeKey, ts: e.ts });
+      if (quorumOut !== null) eventsSinceQuorum++;
       i++;
     }
     const current = quorumOutcome(tally, input.stakeByWriter, config);
@@ -177,14 +211,34 @@ export function resolveMarket(input: ResolveInput): Resolution {
     if (quorumOut === null) {
       quorumOut = current;
       quorumAt = ts;
-    } else if (current !== quorumOut && ts <= quorumAt + input.disputeWindowMs) {
-      // A different outcome reached quorum within the window → dispute → void.
-      return { status: "voided", reason: `counter-quorum for ${current} disputed ${quorumOut}` };
+    } else if (current !== quorumOut) {
+      // A different outcome reached quorum — a genuine dispute → void. In
+      // events mode this is only reachable when the batch *began* inside the
+      // window (the top-of-loop check returns otherwise); a batch straddling
+      // the boundary is indivisible (same-instant events apply together), and
+      // the tie breaks toward the refund.
+      if (window.kind === "wallclock") {
+        if (ts <= quorumAt + window.ms) {
+          return { status: "voided", reason: `counter-quorum for ${current} disputed ${quorumOut}` };
+        }
+      } else {
+        return { status: "voided", reason: `counter-quorum for ${current} disputed ${quorumOut}` };
+      }
     }
   }
 
   if (quorumOut === null) return { status: "open" };
-  const finalizesAt = quorumAt + input.disputeWindowMs;
+  if (window.kind === "events") {
+    if (eventsSinceQuorum >= window.count) return { status: "resolved", outcomeKey: quorumOut, quorumAt };
+    return {
+      status: "provisional",
+      outcomeKey: quorumOut,
+      quorumAt,
+      finalizesAt: null,
+      eventsRemaining: window.count - eventsSinceQuorum,
+    };
+  }
+  const finalizesAt = quorumAt + window.ms;
   if (input.now >= finalizesAt) return { status: "resolved", outcomeKey: quorumOut, quorumAt };
   return { status: "provisional", outcomeKey: quorumOut, quorumAt, finalizesAt };
 }

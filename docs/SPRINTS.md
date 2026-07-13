@@ -222,10 +222,69 @@ existing view rows into new view-models.
   steward names) go through `leaderboardHtml`/`escrowHtml` with hostile-input
   jsdom tests; all new buttons are single-flight via `busy()`.
 
-Roadmap for S15–S16 (pairing + browser demo, trust hardening):
-[IMPROVEMENTS.md](./IMPROVEMENTS.md).
+## S15 — Pairing friction + zero-install browser demo (U8, T6) ✅
+
+- **Copy + QR (U8):** 📋 copy buttons (clipboard API, inline ✓ feedback) on the
+  invite and writer keys, plus a "Show invite QR" card. The QR encoder is the
+  MIT `qrcode-generator`, **vendored** under `apps/terrace/vendor/qr.js`
+  (offline, attributed); a jsdom suite proves the vendored copy is
+  byte-identical to the npm original and that the SVG encodes the exact key.
+- **One-tap pairing (U8):** a `curva/pair` protomux channel rides the existing
+  replication stream (never the log). The joiner sends a **signed**
+  `{t:"pair", writerKey, name}` request (same canonicalization as every log
+  message); `validatePairRequest` (structural caps + the signature must
+  recover to `author`; unit-tested against forged/tampered/hostile payloads)
+  gates what the opener ever sees, and "Approve *name*?" one-taps the existing
+  `addWriter`. Paste-a-key stays as the fallback; BlindPairing proper remains
+  roadmap.
+- **MemoryTerraceNode (T6):** the full TerraceNode surface over `MemoryKV` +
+  the same `applyMessage` fold — no Autobase/Hyperswarm/disk. Digest-proven
+  equal to `foldMessages` on the same script; `version()` moves per append
+  (dropped messages included, like the device); scriptable peer presence.
+- **Browser demo (T6):** `web/demo/` — a static page that imports the REAL
+  `apps/terrace/app.js` (a `globalThis.CURVA_RUNTIME` injection point swaps
+  `TerraceNode.open` for `MemoryTerraceNode.open` — ~10 lines in app.js).
+  Three scripted co-fans (own identities, own FakeWallets, every action a
+  signed message through the fold) bet, chat in three languages, attest the
+  pool-leading outcome after the whistle, and pay their settlement debts.
+  esbuild bundles the TS sources (`conditions: ["development"]`) into a
+  committed `bundle.js` the git-only Vercel deploy serves as-is; a 20s
+  dispute window (runtime-injected) lets a judge watch provisional → resolved
+  in one sitting. Banner: "BROWSER DEMO — in-memory swarm + FakeWallet funds".
+  Landing hero + closing band link it; CI builds the bundle as an artifact.
+  Verified end-to-end in a real browser: open terrace → 3 bots join → custom
+  market → bets both sides → lock → 4/4 attest quorum → 20s window → resolved
+  → "You're up 6.47 ✓" → bots' receipts land unprompted.
+
+## S16 — Trust hardening (T1, T2, T4) ✅
+
+- **Verified receipts (T1):** `ReceiptVerifier` port in wdk-vault:
+  `FakeVerifier` (ledger-backed double), `RpcVerifier`
+  (`eth_getTransactionReceipt` + exact ERC-20 Transfer log decode against
+  from/to/amount on the disclosed USDt contract; injectable fetch;
+  canned-receipt tests, no live RPC in CI), the pure `squareStatus` fold
+  (unpaid/claimed/verified/mismatch per manifest line) and `squareSummary`.
+  App: the receipts line upgrades ✓ → ✓✓ in real mode only (`REAL_MODE`
+  config); RPC-down/unmined degrade to "claimed", **never** a false
+  "verified". Demo behavior bit-identical.
+- **Events-count dispute window (T2):** `resolveMarket` gains
+  `disputeWindow: {kind:"wallclock",ms} | {kind:"events",count}` — events mode
+  finalizes after N further linearized attestation events with no
+  counter-quorum, so author clocks can no longer rush or stall finalization; a
+  batch straddling the window boundary ties toward the refund. Wallclock
+  byte-identity is pinned by a 500-run fast-check regression property.
+  Events-mode provisionals carry `finalizesAt: null` + `eventsRemaining`; the
+  market VM labels them "finalizes after N more attestation(s)". TRUST.md
+  documents when to use which.
+- **Sealed vault (T4):** `sealVault`/`openVault`/`isSealedVault` in wdk-vault —
+  scrypt (2^15, ~100 ms) + XChaCha20-Poly1305 (both noble), versioned blob
+  `v1:scrypt:xchacha:<logN>:<salt>:<nonce>:<ct>`. Wrong passphrase and
+  tampered blobs fail closed; fresh salt+nonce per seal; empty passphrase
+  rejected. App: a Vault card (plaintext demo seed stays the labelled
+  default; "Seal vault" opts in; sealed offers "Change" re-seal) and a launch
+  unlock gate before any seed derivation.
 
 ---
-**Totals:** 11 packages + app, 237 tests (property + fuzz + e2e + jsdom),
-`npm run check` + `npm run build` + `npm run demo` all green. Remaining
-human-only items are listed in [SUBMISSION.md](./SUBMISSION.md).
+**Totals:** 11 packages + app, 296 tests (property + fuzz + e2e + jsdom),
+`npm run check` + `npm run build` + `npm run demo` + `npm run build:demo` all
+green. Remaining human-only items are listed in [SUBMISSION.md](./SUBMISSION.md).

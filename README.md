@@ -35,11 +35,23 @@ removes all three because **a parimutuel pool is a CRDT**:
 
 > *Polymarket needs AWS, an oracle company, and a custodian. Curva needs two phones.*
 
+## Try it in the browser — zero install
+
+**https://curva-rouge.vercel.app/demo/** — the real terrace UI (the same
+`app.js` the Pear app runs, same tested render layer, same signed-message
+fold) over an in-memory node, with three scripted co-fans who bet, chat,
+attest, and pay their debts. Open a market on anything, trade against them,
+blow the whistle, and watch the crowd oracle resolve and settle. **Honesty
+note:** the swarm is in-memory and the money is FakeWallet — the banner says
+so on the page. The wire path (Autobase + Hyperswarm + real USDt) is the Pear
+app below. Rebuild it any time with `npm run build:demo` (the bundle is
+committed so the static site deploys from git alone).
+
 ## Run it
 
 ```bash
 npm install
-npm run check   # typecheck + lint + 217 tests (property + fuzz + e2e + jsdom); Node ≥20.19/22.12/24
+npm run check   # typecheck + lint + 296 tests (property + fuzz + e2e + jsdom); Node ≥20.19/22.12/24
 npm run demo    # the whole pipeline, headless, in one command
 ```
 

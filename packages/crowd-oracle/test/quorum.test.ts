@@ -158,3 +158,88 @@ describe("resolveMarket — dispute window", () => {
     });
   });
 });
+
+describe("resolveMarket — events-count dispute window (S16 T2, hardened mode)", () => {
+  const stake = new Map([["a", 30n * USDT], ["b", 30n * USDT], ["c", 30n * USDT], ["d", 10n * USDT]]);
+  const disputeWindowMs = 600_000;
+  const eventsWindow = (count: number) => ({ kind: "events", count } as const);
+
+  test("quorum + N quiet further events finalizes, regardless of wall clock", () => {
+    const events = [
+      ev("a", "HOME", 1000), ev("b", "HOME", 1000), ev("c", "HOME", 1000), // quorum
+      ev("d", "HOME", 1001), ev("a", "HOME", 1002), // 2 quiet events
+    ];
+    // now == quorumAt: a wallclock window would still be provisional; the
+    // events window has closed, so the author clock no longer matters.
+    const r = resolveMarket({ events, stakeByWriter: stake, now: 1000, disputeWindowMs, disputeWindow: eventsWindow(2) });
+    expect(r).toMatchObject({ status: "resolved", outcomeKey: "HOME", quorumAt: 1000 });
+  });
+
+  test("fewer than N further events stays provisional with eventsRemaining", () => {
+    const events = [
+      ev("a", "HOME", 1000), ev("b", "HOME", 1000), ev("c", "HOME", 1000),
+      ev("d", "HOME", 1001), // only 1 of 3 window events seen
+    ];
+    const r = resolveMarket({ events, stakeByWriter: stake, now: 99_999_999, disputeWindowMs, disputeWindow: eventsWindow(3) });
+    expect(r).toMatchObject({ status: "provisional", outcomeKey: "HOME", finalizesAt: null, eventsRemaining: 2 });
+  });
+
+  test("a counter-quorum within the N-event window voids", () => {
+    const events = [
+      ev("a", "HOME", 1000), ev("b", "HOME", 1000), ev("c", "HOME", 1000), // HOME quorum
+      ev("a", "AWAY", 2000), ev("b", "AWAY", 2000), ev("c", "AWAY", 2000), ev("d", "AWAY", 2000), // flip within 4 events
+    ];
+    const r = resolveMarket({ events, stakeByWriter: stake, now: 0, disputeWindowMs, disputeWindow: eventsWindow(4) });
+    expect(r.status).toBe("voided");
+  });
+
+  test("once the window has closed quietly, a later flip cannot void", () => {
+    const events = [
+      ev("a", "HOME", 1000), ev("b", "HOME", 1000), ev("c", "HOME", 1000), // quorum
+      ev("d", "HOME", 1001), ev("a", "HOME", 1002), // window (2) closes quietly here
+      ev("a", "AWAY", 3000), ev("b", "AWAY", 3000), ev("c", "AWAY", 3000), ev("d", "AWAY", 3000), // too late
+    ];
+    const r = resolveMarket({ events, stakeByWriter: stake, now: 0, disputeWindowMs, disputeWindow: eventsWindow(2) });
+    expect(r).toMatchObject({ status: "resolved", outcomeKey: "HOME" });
+  });
+
+  test("re-attests strengthening the same outcome inside the window do not void", () => {
+    const events = [
+      ev("a", "HOME", 1000), ev("b", "HOME", 1000), ev("c", "HOME", 1000),
+      ev("d", "HOME", 1500), ev("d", "HOME", 1600), ev("d", "HOME", 1700),
+    ];
+    const r = resolveMarket({ events, stakeByWriter: stake, now: 0, disputeWindowMs, disputeWindow: eventsWindow(3) });
+    expect(r).toMatchObject({ status: "resolved", outcomeKey: "HOME" });
+  });
+
+  test("no quorum at all stays open under an events window", () => {
+    const r = resolveMarket({ events: [ev("a", "HOME", 1000)], stakeByWriter: stake, now: 0, disputeWindowMs, disputeWindow: eventsWindow(2) });
+    expect(r.status).toBe("open");
+  });
+
+  test("explicit wallclock disputeWindow is byte-identical to the disputeWindowMs default (regression)", () => {
+    const writers = ["a", "b", "c", "d"] as const;
+    const outcomes = ["HOME", "AWAY", "DRAW"] as const;
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({
+            w: fc.constantFrom(...writers),
+            o: fc.constantFrom(...outcomes),
+            ts: fc.integer({ min: 1000, max: 5000 }),
+          }),
+          { maxLength: 24 },
+        ),
+        fc.integer({ min: 0, max: 10_000 }),
+        (raw, nowOffset) => {
+          const events = raw.map(({ w, o, ts }) => ev(w, o, ts));
+          const base = { events, stakeByWriter: stake, now: 1000 + nowOffset, disputeWindowMs };
+          const implicit = resolveMarket(base);
+          const explicit = resolveMarket({ ...base, disputeWindow: { kind: "wallclock", ms: disputeWindowMs } });
+          expect(explicit).toEqual(implicit);
+        },
+      ),
+      { numRuns: 500 },
+    );
+  });
+});

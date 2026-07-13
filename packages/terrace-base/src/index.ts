@@ -11,4 +11,6 @@ export * from "./identity.js";
 export * from "./protocol.js";
 export * from "./view.js";
 export * from "./apply.js";
+export * from "./pairing.js";
 export { TerraceNode, type TerraceOptions } from "./autobase-runtime.js";
+export { MemoryTerraceNode, type MemoryTerraceOptions } from "./memory-runtime.js";

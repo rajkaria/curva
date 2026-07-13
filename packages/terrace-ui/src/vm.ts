@@ -214,7 +214,9 @@ export async function marketVm(kv: KV, state: UiState, marketId: string): Promis
     resolution,
     finalizesLabel:
       resolution.status === "provisional"
-        ? `finalizes in ${countdown(resolution.finalizesAt - state.now)}`
+        ? resolution.finalizesAt !== null
+          ? `finalizes in ${countdown(resolution.finalizesAt - state.now)}`
+          : `finalizes after ${resolution.eventsRemaining ?? 0} more attestation(s)`
         : null,
     finalizesAt: resolution.status === "provisional" ? resolution.finalizesAt : null,
     receipts,

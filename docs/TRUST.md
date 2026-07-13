@@ -31,6 +31,44 @@ escrow. No company custodian — three mates *are* the custodian.
 custodian with no distinguished stewards. Specced in [VISION.md](../VISION.md);
 not attempted for this cut. We say so plainly rather than fake it.
 
+## Trust hardening (S16, shipped, opt-in)
+
+Three post-audit upgrades close the remaining honesty gaps. All are **opt-in**;
+demo-mode behavior is bit-identical unless a feature is switched on.
+
+### Verified receipts (T1)
+
+Receipts in the log are self-reported txids — Tier 1's social model tolerates
+that, but real mode shouldn't have to. `ReceiptVerifier` (`@curva/wdk-vault`)
+checks each claimed transfer against the chain: `eth_getTransactionReceipt` +
+an exact ERC-20 `Transfer(from, to, amount)` log match on the disclosed USDt
+contract. The "everyone's square" checklist upgrades ✓ (claimed) → ✓✓
+(verified) per line; a reverted tx or a wrong amount shows ⚠ mismatch.
+Failure modes (RPC down, unmined tx) degrade to "claimed" — **never to a false
+"verified"**. Verification is read-side only: no protocol change, every peer
+verifies independently.
+
+### Hardened dispute window (T2)
+
+The default dispute window is wall-clock (`{kind: "wallclock", ms}`): a market
+finalizes N minutes after quorum, which trusts author timestamps — fine for
+mates. The hardened mode (`{kind: "events", count}`) removes that last
+wall-clock trust: a market finalizes only after `count` further **linearized
+attestation events** arrive with no counter-quorum. Progress is measured in
+signed log entries that every peer replays identically, so no author clock can
+rush a finalization or stall one. Recommended for adversarial crowds; the
+wallclock mode's behavior is pinned by a byte-identical regression property.
+
+### Seed sealed at rest (T4)
+
+By default the demo seed sits in localStorage, labelled "demo seed —
+unencrypted". Opt in to a passphrase and the mnemonic is sealed with
+scrypt (≈100 ms KDF) + XChaCha20-Poly1305 into a versioned blob
+(`v1:scrypt:xchacha:…`); the app then gates launch on the passphrase.
+Wrong passphrase fails closed (AEAD auth error — never garbage), and the
+plaintext key is replaced, not shadowed. There is no recovery without the
+passphrase, and the UI says so.
+
 ## Money invariants (all tiers)
 
 Payout math is the ported Hunch kernel: winners split losers' pool pro-rata;

@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** T1 (verify receipts on-chain in real mode), T2 (linearization-index
 dispute window — remove the last wall-clock trust), T4 (mnemonic encrypted at
@@ -44,33 +44,33 @@ rest). All opt-in, all tested, none changing demo-mode behavior.
 ## Tasks
 
 ### T1 — Receipt verification
-- [ ] TDD FakeVerifier semantics (confirmed/pending/mismatch) + the
+- [x] TDD FakeVerifier semantics (confirmed/pending/mismatch) + the
   square-checklist upgrade logic as a pure function
   (`squareStatus(receipts, verdicts)`).
-- [ ] RpcVerifier: `eth_getTransactionReceipt` + Transfer(address,address,uint256)
+- [x] RpcVerifier: `eth_getTransactionReceipt` + Transfer(address,address,uint256)
   log decode against expected from/to/amount; retries/pending handling;
   integration-style test against a canned receipt JSON fixture (no live RPC in CI).
-- [ ] App: verified ticks in the receipts card (real mode only).
+- [x] App: verified ticks in the receipts card (real mode only).
 
 ### T2 — Events-count dispute window
-- [ ] Tests: counter-quorum within N events voids; quiet N events finalizes;
+- [x] Tests: counter-quorum within N events voids; quiet N events finalizes;
   wallclock mode behavior byte-identical to today (regression).
-- [ ] Impl in `resolveMarket` (pure); TRUST.md gains a "hardened window" section.
+- [x] Impl in `resolveMarket` (pure); TRUST.md gains a "hardened window" section.
 
 ### T3 — Sealed vault
-- [ ] TDD: seal→open round-trip; wrong passphrase fails closed; sealed blob is
+- [x] TDD: seal→open round-trip; wrong passphrase fails closed; sealed blob is
   versioned (`v1:scrypt:xchacha`) for future migration; scrypt params chosen
   for ~100ms on desktop.
-- [ ] App: optional passphrase on first launch; "change passphrase" re-seal;
+- [x] App: optional passphrase on first launch; "change passphrase" re-seal;
   demo default stays plaintext with an explicit label.
 
 ### T4 — Gates + docs
-- [ ] `npm run check`/`build`/`demo`; SPRINTS.md; context doc; commit.
+- [x] `npm run check`/`build`/`demo`; SPRINTS.md; context doc; commit.
 
 ## Self-review checklist
-- [ ] Demo-mode behavior is bit-identical unless features are opted into.
-- [ ] Wallclock dispute window regression suite proves no resolution changes.
-- [ ] No secret material ever logged or rendered; sealed blob replaces the
+- [x] Demo-mode behavior is bit-identical unless features are opted into.
+- [x] Wallclock dispute window regression suite proves no resolution changes.
+- [x] No secret material ever logged or rendered; sealed blob replaces the
   plaintext localStorage key when a passphrase is set.
-- [ ] RpcVerifier failure modes (RPC down, pending tx) degrade to "claimed",
+- [x] RpcVerifier failure modes (RPC down, pending tx) degrade to "claimed",
   never to a false "verified".

@@ -16,6 +16,7 @@
  * private-pool semantics we want — the invite is the capability.
  */
 import { applyMessage } from "./apply.js";
+import { validatePairRequest, type PairRequest } from "./pairing.js";
 import type { KV } from "./view.js";
 import type { Msg } from "./protocol.js";
 
@@ -67,6 +68,13 @@ export class TerraceNode {
   private swarm: Any;
   /** Live Hyperswarm connections — the P2P presence the UI shows as a peer count. */
   private readonly connections = new Set<Any>();
+  /** Opener side: surfaced pairing requests (S15). Keyed by author to dedup. */
+  private pairHandler: ((req: PairRequest) => void) | null = null;
+  private readonly pairSeen = new Set<string>();
+  /** Joiner side: the signed request to send on every connection until writable. */
+  private pairRequest: PairRequest | null = null;
+  /** Live pair-channel senders, one per connection (for late requestPairing). */
+  private readonly pairSenders = new Set<Any>();
 
   private constructor(private readonly opts: TerraceOptions) {}
 
@@ -150,6 +158,8 @@ export class TerraceNode {
   /** Join the Hyperswarm topic for this terrace and replicate to peers. */
   async joinSwarm(): Promise<void> {
     const Hyperswarm = (await dynImport("hyperswarm")).default;
+    const Protomux = (await dynImport("protomux")).default;
+    const cenc = await dynImport("compact-encoding");
     this.swarm = new Hyperswarm();
     this.swarm.on("connection", (conn: Any) => {
       this.store.replicate(conn);
@@ -157,10 +167,55 @@ export class TerraceNode {
       // legible if the peer count is visible and updates as peers come and go.
       this.connections.add(conn);
       conn.once("close", () => this.connections.delete(conn));
+      this.openPairChannel(Protomux, cenc, conn);
     });
     const topic = this.base.discoveryKey;
     this.swarm.join(topic, { server: true, client: true });
     await this.swarm.flush();
+  }
+
+  /**
+   * The pairing side-channel (S15): a `curva/pair` protomux channel muxed onto
+   * the same replication stream — never the log. A joiner sends its signed
+   * request on connect (until writable); an opener validates and surfaces it
+   * to the UI via {@link onPairRequest} for one-tap approval.
+   */
+  private openPairChannel(Protomux: Any, cenc: Any, conn: Any): void {
+    const mux = Protomux.from(conn);
+    const channel = mux.createChannel({ protocol: "curva/pair" });
+    if (channel === null) return; // channel already open on this stream
+    const message = channel.addMessage({
+      encoding: cenc.json,
+      onmessage: (raw: unknown) => {
+        const req = validatePairRequest(raw); // hostile input dies here
+        if (req === null || this.pairHandler === null) return;
+        if (this.pairSeen.has(req.author)) return; // one card per identity
+        this.pairSeen.add(req.author);
+        this.pairHandler(req);
+      },
+    });
+    channel.open();
+    this.pairSenders.add(message);
+    conn.once("close", () => this.pairSenders.delete(message));
+    if (this.pairRequest !== null && !this.writable()) message.send(this.pairRequest);
+  }
+
+  /** Opener: receive validated pairing requests (deduped per identity). */
+  onPairRequest(cb: (req: PairRequest) => void): void {
+    this.pairHandler = cb;
+  }
+
+  /** Joiner: announce this signed request to every peer until writable. */
+  requestPairing(req: PairRequest): void {
+    this.pairRequest = req;
+    if (this.writable()) return;
+    for (const send of this.pairSenders) {
+      try {
+        send.send(req);
+      } catch {
+        /* a torn-down stream is presence-tracked elsewhere */
+      }
+    }
   }
 
   /** Number of live peer connections on this terrace's swarm. */

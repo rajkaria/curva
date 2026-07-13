@@ -15,18 +15,23 @@
     "test": "vitest run",
     "build": "tsc -b tsconfig.build.json",
     "demo": "node scripts/demo.mjs",
+    "build:demo": "node scripts/build-web-demo.mjs",
+    "demo:web": "npm run build:demo && npx -y serve web",
     "check": "npm run typecheck && npm run lint && npm run test"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "esbuild": "^0.28.1",
     "eslint": "^9.28.0",
     "fast-check": "^4.1.0",
     "jsdom": "^29.1.1",
+    "qrcode-generator": "^2.0.4",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.33.0",
     "vitest": "^3.2.0"
   },
   "dependencies": {
+    "@noble/ciphers": "^1.2.0",
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@scure/bip32": "^1.7.0",

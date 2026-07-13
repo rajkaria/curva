@@ -11,6 +11,7 @@ import {
   barClass,
   cdSpanHtml,
   chatLineHtml,
+  demoBannerHtml,
   esc,
   escrowHtml,
   headerWidgetsHtml,
@@ -243,4 +244,11 @@ describe("S14 surfaces stay inert under hostile peer strings", () => {
     expect(host2.textContent).toContain("standby");
     expect(host2.querySelectorAll(".pill.ok")).toHaveLength(1); // only Tier 1
   });
+});
+
+test("demoBannerHtml accepts override copy (browser demo) and still escapes", () => {
+  const html = demoBannerHtml('BROWSER DEMO <script>alert(1)</script>');
+  document.body.innerHTML = html;
+  expect(document.querySelector("script")).toBeNull();
+  expect(document.querySelector(".banner")!.textContent).toContain("BROWSER DEMO");
 });
