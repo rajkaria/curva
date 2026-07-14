@@ -36,11 +36,12 @@ import { FakeTranslator, suggestMarkets, buildGafferContext, fallbackQuip, QvacL
 import {
   terraceVm, marketVm, chatVm, gafferPoolVm, settlementVm,
   positionVm, previewPayout, pnlVm, tallyVm, headerVm,
-  marketPickerVm, buildCustomMarket, planMicroRounds, leaderboardVm, escrowVm, recentTerracesVm,
+  marketPickerVm, customDraftVm, planMicroRounds, leaderboardVm, escrowVm, recentTerracesVm,
+  OUTCOME_TEMPLATES, CLOSE_PRESETS, CLOSE_MINUTES, normalizeCloseMinutes,
   LANGS, GAFFER_IDLE, countdown, usdt,
   esc, outcomeClass, marketHeadHtml, outcomeRowHtml, chatLineHtml, cdSpanHtml,
   demoBannerHtml, headerWidgetsHtml, positionHtml, previewLineHtml, pnlHtml, tallyHtml,
-  leaderboardHtml, escrowHtml,
+  leaderboardHtml, escrowHtml, customDraftHtml, outcomeChipHtml,
 } from "@curva/terrace-ui";
 import { FIXTURES, STATS_BUNDLE, DEMO_TRANSCRIPT } from "../../fixtures/wc2026.js";
 
@@ -133,6 +134,18 @@ let gafferLlm = null;
 let gafferState = "off";
 // Pairing requests awaiting a human tap (S15) — validated + deduped in terrace-base.
 let pendingPairs = [];
+// The market composer's draft: local, never replicated until it's signed. Lives
+// out here so a background render (gossip, a bot's bet) can't wipe a half-built
+// market the way a DOM-only form would.
+const freshDraft = () => ({
+  title: "",
+  outcomes: [...OUTCOME_TEMPLATES[0].outcomes],
+  minutes: CLOSE_MINUTES.fallback,
+});
+let draft = freshDraft();
+// The half-typed outcome in the add box — draft state too, so a background
+// render (a bot's bet landing) re-renders it instead of eating it.
+let draftAdd = "";
 const wallet = new FakeWallet(vault.wallet.address, 1000n * 1_000_000n); // demo-funded
 // Demo mode is *derived*, not asserted: the banner shows iff the fakes are live.
 const demoMode = wallet instanceof FakeWallet;
@@ -405,18 +418,18 @@ async function openMarketFromSpec(fx, spec) {
   if (ok) toast(`Opened: ${spec.params.title}`);
 }
 
-/** Open a custom market on anything — not tied to a fixture. `title`/`outcomesText`
- *  come straight from the form; `buildCustomMarket` validates against the fold's
- *  caps, so we only sign specs `apply` will keep. Closes `mins` minutes out. */
-async function openCustomMarket(title, outcomesText, mins) {
-  const built = buildCustomMarket({ title, outcomesText });
-  if (!built.ok) { toast(built.error); return; }
-  const minutes = Number(mins) > 0 ? Number(mins) : 60;
+/** Open a custom market on anything — not tied to a fixture. The composer's draft
+ *  goes through `customDraftVm`, whose validity is the same condition that enables
+ *  the button, so we only ever sign specs the fold will keep. */
+async function openCustomMarket(draft) {
+  const vm = customDraftVm(draft, Date.now());
+  if (!vm.valid || !vm.spec) { toast(vm.error ?? "Draft incomplete"); return false; }
   const ok = await emit({
-    t: "market", marketId: marketId(), kind: built.spec.kind, params: built.spec.params,
-    cutoffAt: Date.now() + minutes * 60_000, feeBps: 0,
+    t: "market", marketId: marketId(), kind: vm.spec.kind, params: vm.spec.params,
+    cutoffAt: Date.now() + vm.minutes * 60_000, feeBps: 0,
   });
-  if (ok) toast(`Opened: ${built.spec.params.title}`);
+  if (ok) { toast(`Opened: ${vm.spec.params.title}`); celebrate("📣"); }
+  return ok;
 }
 
 // ── Micro-rounds (opener-side scheduler) ─────────────────────────────────────
@@ -585,11 +598,13 @@ function qrSvg(text) {
 
 // Input values survive the swap: snapshot by stable id, restore after —
 // but only within the same screen+market (never leak a stake across markets).
+// `data-nosnap` opts an input out: the composer's fields are rendered FROM the
+// draft, so restoring a pre-swap value would resurrect a market we just opened.
 const viewKey = () => `${screen}:${selectedMarket}`;
 let lastViewKey = "";
 function snapshotInputs() {
   const snap = new Map();
-  for (const el of app.querySelectorAll("input[id]")) snap.set(el.id, el.value);
+  for (const el of app.querySelectorAll("input[id]:not([data-nosnap])")) snap.set(el.id, el.value);
   return snap;
 }
 function restoreInputs(snap) {
@@ -674,6 +689,177 @@ function renderHome(stage) {
   }
 }
 
+/**
+ * The market composer — the protocol isn't football-only, and this is where that
+ * shows. A question, an outcome set, a window: the draft is rendered live as the
+ * exact card the terrace will see, and the CTA unlocks on the *same* condition
+ * that decides whether the fold keeps the spec (customDraftVm.valid). Every patch
+ * here is local DOM surgery, never a re-render, so nothing can wipe a half-built
+ * market mid-type.
+ */
+function renderComposer(stage) {
+  const card = h(`<div class="card stack composer">
+    <h2>Create a market</h2>
+    <p class="lede-sm">Not just football. Ask anything, name the outcomes, set the window — your crowd settles it by attestation.</p>
+
+    <label class="field">
+      <span class="field-label">The question <span class="count" id="draft-count"></span></span>
+      <input id="custom-title" placeholder="Will we ship by Friday?" autocomplete="off" data-nosnap />
+    </label>
+
+    <div class="field">
+      <span class="field-label">Outcomes <span class="count" id="draft-outcount"></span></span>
+      <div class="row wrap templates" id="draft-templates"></div>
+      <div class="row wrap chips" id="draft-chips"></div>
+      <div class="row tight addrow">
+        <input id="custom-add" placeholder="add an outcome…" autocomplete="off" maxlength="64" data-nosnap />
+        <button class="ghost sm" id="custom-add-btn">+ Add</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Betting closes in</span>
+      <div class="row wrap closes" id="draft-closes"></div>
+    </div>
+
+    <div id="draft-preview"></div>
+    <button class="primary" id="custom-create">Open market →</button>
+  </div>`);
+
+  const title = card.querySelector("#custom-title");
+  const count = card.querySelector("#draft-count");
+  const outcount = card.querySelector("#draft-outcount");
+  const chips = card.querySelector("#draft-chips");
+  const templates = card.querySelector("#draft-templates");
+  const closes = card.querySelector("#draft-closes");
+  const preview = card.querySelector("#draft-preview");
+  const create = card.querySelector("#custom-create");
+  const addInput = card.querySelector("#custom-add");
+
+  // Every field is rendered FROM the draft — that's what makes the composer
+  // survive a render triggered by anything else in the terrace.
+  title.value = draft.title;
+  addInput.value = draftAdd;
+
+  /** Re-derive every dependent surface from the draft — the one update path. */
+  const refresh = () => {
+    const vm = customDraftVm(draft, Date.now());
+    count.textContent = `${vm.titleCount}/${vm.titleMax}`;
+    count.classList.toggle("over", vm.titleOver);
+    outcount.textContent = `${vm.outcomeCount}`;
+
+    chips.innerHTML = draft.outcomes.map((o, i) => outcomeChipHtml(o, i)).join("");
+    for (const x of chips.querySelectorAll("button.x")) {
+      x.onclick = () => { draft.outcomes.splice(Number(x.dataset.i), 1); refresh(); };
+    }
+    for (const b of templates.querySelectorAll("button")) {
+      const set = OUTCOME_TEMPLATES[Number(b.dataset.t)].outcomes;
+      b.classList.toggle("active", set.length === draft.outcomes.length && set.every((o, i) => o === draft.outcomes[i]));
+    }
+    for (const b of closes.querySelectorAll("button")) {
+      b.classList.toggle("active", Number(b.dataset.m) === vm.minutes);
+    }
+    preview.innerHTML = customDraftHtml(vm);
+    create.disabled = !vm.valid;
+  };
+
+  OUTCOME_TEMPLATES.forEach((t, i) => {
+    const b = h(`<button class="chip-btn" data-t="${i}">${esc(t.label)}</button>`);
+    b.onclick = () => { draft.outcomes = [...t.outcomes]; refresh(); };
+    templates.appendChild(b);
+  });
+
+  const minsBox = h(`<span class="row tight minsbox"><input id="custom-mins" type="number" min="${CLOSE_MINUTES.min}" max="${CLOSE_MINUTES.max}" step="1" data-nosnap /><span class="muted">min</span></span>`);
+  const mins = minsBox.querySelector("#custom-mins");
+  mins.value = String(draft.minutes);
+  mins.addEventListener("input", () => { draft.minutes = normalizeCloseMinutes(mins.value); refresh(); });
+  CLOSE_PRESETS.forEach((p) => {
+    const b = h(`<button class="chip-btn" data-m="${p.minutes}">${esc(p.label)}</button>`);
+    b.onclick = () => { draft.minutes = p.minutes; mins.value = String(p.minutes); refresh(); };
+    closes.appendChild(b);
+  });
+  closes.appendChild(minsBox);
+
+  const addOutcome = () => {
+    const v = draftAdd.trim();
+    if (!v) return;
+    if (draft.outcomes.some((o) => o.toLowerCase() === v.toLowerCase())) return toast("That outcome is already there");
+    draft.outcomes = [...draft.outcomes, v];
+    draftAdd = "";
+    addInput.value = "";
+    refresh();
+  };
+  addInput.addEventListener("input", () => { draftAdd = addInput.value; });
+  addInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addOutcome(); } });
+  card.querySelector("#custom-add-btn").onclick = addOutcome;
+  title.addEventListener("input", () => { draft.title = title.value; refresh(); });
+
+  // Not `busy()`: validity — not the click guard — owns the disabled state, so
+  // the button can't come back enabled on an empty draft after a successful open.
+  // On success we reset the draft and re-render: appending the market already
+  // scheduled a render, and this composer's nodes may be detached by the time we
+  // get here, so the fresh draft has to be painted by the next pass, not by us.
+  create.onclick = async () => {
+    if (create.disabled) return;
+    create.disabled = true;
+    try {
+      if (await openCustomMarket(draft)) {
+        draft = freshDraft();
+        draftAdd = "";
+        markDirty();
+        return;
+      }
+    } catch (err) {
+      toast("⚠ " + (err?.message ?? err));
+    }
+    refresh(); // it didn't open — validity decides whether the CTA comes back
+  };
+
+  refresh();
+  stage.appendChild(card);
+}
+
+/** The bundled bracket: every catalogue market for a fixture, one tap each. */
+function renderFixtures(stage) {
+  const opener = h(`<div class="card stack fixtures">
+    <h2>Open a match market</h2>
+    <p class="lede-sm">The World Cup bracket, pre-loaded. Each option signs the exact spec the kernel prices.</p>
+  </div>`);
+  for (const fx of FIXTURES) {
+    const live = liveRounds && liveRounds.fixtureId === fx.id;
+    const det = h(`<details class="fixture stack">
+      <summary>
+        <span class="fx-teams">${teamEmoji(fx.home)} ${esc(fx.home)} <span class="v">v</span> ${teamEmoji(fx.away)} ${esc(fx.away)}</span>
+        <span class="pill">${esc(fx.round ?? "match")}</span>${live ? ' <span class="pill ok">● live</span>' : ""}
+      </summary>
+    </details>`);
+
+    const picks = h(`<div class="row wrap picks"></div>`);
+    for (const opt of marketPickerVm(fx)) {
+      const b = h(`<button class="ghost sm">${esc(opt.label)}</button>`);
+      busy(b, () => openMarketFromSpec(fx, opt.spec));
+      picks.appendChild(b);
+    }
+    det.appendChild(picks);
+
+    // Tappable hunch suggestions (F3): the top two, each opening that exact spec.
+    for (const s of suggestMarkets(fx.home, fx.away, STATS_BUNDLE).slice(1, 3)) {
+      const b = h(`<button class="ghost hunch">↳ ${esc(s.reason)}</button>`);
+      busy(b, () => openMarketFromSpec(fx, s.spec));
+      det.appendChild(b);
+    }
+
+    // Opener-only micro-round toggle (F2).
+    if (role === "opener") {
+      const lr = h(`<button class="ghost hunch">${live ? "■ Stop live rounds" : "▶ Live rounds — a fresh 10-min goal market, every 10 min"}</button>`);
+      busy(lr, () => (live ? stopLiveRounds() : startLiveRounds(fx)));
+      det.appendChild(lr);
+    }
+    opener.appendChild(det);
+  }
+  stage.appendChild(opener);
+}
+
 async function renderTerrace(stage) {
   const kv = node.view();
   const state = uiState();
@@ -716,55 +902,8 @@ async function renderTerrace(stage) {
     stage.appendChild(pair);
   }
 
-  // Create your own market — the protocol isn't football-only. Any peer opens a
-  // market on anything (a question + its outcomes) and shares this terrace with
-  // their crowd; the same crowd oracle settles it by attestation.
-  const custom = h(`<div class="card stack">
-    <h2>Create your own market</h2>
-    <p class="muted">Not just football — ask anything. Your crowd settles it by attestation.</p>
-    <input id="custom-title" placeholder="Question, e.g. Will we ship by Friday?" />
-    <input id="custom-outcomes" value="YES, NO" placeholder="outcomes, comma-separated" />
-    <div class="row tight"><input id="custom-mins" type="number" min="1" step="1" value="60" style="width:6em" /><span class="muted">min to close</span></div>
-    <button class="ghost" id="custom-create">Open market</button>
-  </div>`);
-  busy(custom.querySelector("#custom-create"), () => openCustomMarket(
-    custom.querySelector("#custom-title").value,
-    custom.querySelector("#custom-outcomes").value,
-    custom.querySelector("#custom-mins").value,
-  ));
-  stage.appendChild(custom);
-
-  // Open a market — the full catalogue per fixture (collapsed so the whole
-  // bracket fits), each option a tappable button carrying the exact factory spec.
-  const opener = h(`<div class="card stack"><h2>Open a market</h2></div>`);
-  for (const fx of FIXTURES) {
-    const live = liveRounds && liveRounds.fixtureId === fx.id;
-    const det = h(`<details class="stack"><summary>${teamEmoji(fx.home)} ${esc(fx.home)} vs ${teamEmoji(fx.away)} ${esc(fx.away)} <span class="pill">${esc(fx.round ?? "match")}</span>${live ? ' <span class="pill ok">LIVE</span>' : ""}</summary></details>`);
-
-    const picks = h(`<div class="row wrap" style="margin-top:8px"></div>`);
-    for (const opt of marketPickerVm(fx)) {
-      const b = h(`<button class="ghost">${esc(opt.label)}</button>`);
-      busy(b, () => openMarketFromSpec(fx, opt.spec));
-      picks.appendChild(b);
-    }
-    det.appendChild(picks);
-
-    // Tappable hunch suggestions (F3): the top two, each opening that exact spec.
-    for (const s of suggestMarkets(fx.home, fx.away, STATS_BUNDLE).slice(1, 3)) {
-      const b = h(`<button class="ghost" style="text-align:left">↳ ${esc(s.reason)}</button>`);
-      busy(b, () => openMarketFromSpec(fx, s.spec));
-      det.appendChild(b);
-    }
-
-    // Opener-only micro-round toggle (F2).
-    if (role === "opener") {
-      const lr = h(`<button class="ghost">${live ? "■ Stop live rounds" : "▶ Live rounds (10-min goal markets)"}</button>`);
-      busy(lr, () => (live ? stopLiveRounds() : startLiveRounds(fx)));
-      det.appendChild(lr);
-    }
-    opener.appendChild(det);
-  }
-  stage.appendChild(opener);
+  renderComposer(stage);
+  renderFixtures(stage);
 
   // Live markets — open micro-rounds float to the top (grouping in terraceVm).
   const list = h(`<div class="card stack"><h2>Markets (${t.markets.length})</h2></div>`);

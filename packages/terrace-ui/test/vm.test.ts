@@ -19,10 +19,15 @@ import {
   totalGoalsLadder,
 } from "@curva/market-catalogue";
 import {
+  CLOSE_MINUTES,
+  CLOSE_PRESETS,
   DEMO_BANNER,
   GAFFER_IDLE,
   LANGS,
+  OUTCOME_TEMPLATES,
   buildCustomMarket,
+  customDraftVm,
+  normalizeCloseMinutes,
   chatVm,
   escrowVm,
   gafferPoolVm,
@@ -44,8 +49,10 @@ import {
   tallyVm,
   terraceVm,
   walletVm,
+  type CustomDraft,
   type UiState,
 } from "../src/vm.js";
+import { countdown } from "../src/format.js";
 
 const USDT = 1_000_000n;
 const T0 = 1_000_000;
@@ -713,5 +720,85 @@ describe("custom market draft → signable spec (the create-market form)", () =>
     const dup = buildCustomMarket({ title: "Q", outcomesText: "YES, YES" });
     expect(dup.ok).toBe(false);
     if (!dup.ok) expect(dup.error).toMatch(/unique/);
+  });
+});
+
+describe("the composer (customDraftVm) — the live draft behind the create form", () => {
+  const NOW = 1_700_000_000_000;
+  const draft = (over: Partial<CustomDraft> = {}): CustomDraft => ({
+    title: "Will we ship by Friday?",
+    outcomes: ["YES", "NO"],
+    minutes: 60,
+    ...over,
+  });
+
+  test("a good draft is signable, opens at even money, and closes when it says", () => {
+    const vm = customDraftVm(draft(), NOW);
+    expect(vm.valid).toBe(true);
+    expect(vm.error).toBeNull();
+    expect(vm.spec?.params.outcomes).toEqual(["YES", "NO"]);
+    expect(vm.outcomes.map((o) => o.pct)).toEqual([50, 50]);
+    expect(vm.outcomes.map((o) => o.oddsLabel)).toEqual(["2.00×", "2.00×"]);
+    expect(vm.closesAt).toBe(NOW + 60 * 60_000);
+    expect(vm.closesLabel).toBe(countdown(60 * 60_000));
+    expect(vm.titleCount).toBe("Will we ship by Friday?".length);
+  });
+
+  test("three outcomes split the book three ways at 3.00×", () => {
+    const vm = customDraftVm(draft({ outcomes: ["HOME", "DRAW", "AWAY"] }), NOW);
+    expect(vm.outcomeCount).toBe(3);
+    expect(vm.outcomes.map((o) => o.oddsLabel)).toEqual(["3.00×", "3.00×", "3.00×"]);
+    expect(vm.outcomes[0]!.pct).toBeCloseTo(33.33, 2);
+  });
+
+  test("an unsignable draft is never valid, and says why in the terrace's words", () => {
+    const empty = customDraftVm(draft({ title: "   " }), NOW);
+    expect(empty.valid).toBe(false);
+    expect(empty.spec).toBeNull();
+    expect(empty.error).not.toMatch(/customMarket:/); // engine prefix stripped
+    expect(empty.error).toMatch(/title/i);
+
+    const lonely = customDraftVm(draft({ outcomes: ["YES"] }), NOW);
+    expect(lonely.valid).toBe(false);
+    expect(lonely.error).toMatch(/at least 2/i);
+
+    const dup = customDraftVm(draft({ outcomes: ["YES", " YES "] }), NOW);
+    expect(dup.valid).toBe(false); // trimmed to the same key — the fold would drop it
+    expect(dup.error).toMatch(/unique/i);
+
+    const long = customDraftVm(draft({ title: "x".repeat(201) }), NOW);
+    expect(long.valid).toBe(false);
+    expect(long.titleOver).toBe(true);
+  });
+
+  test("blank outcome slots are dropped, not counted (an empty chip can't hold the CTA hostage)", () => {
+    const vm = customDraftVm(draft({ outcomes: ["YES", "  ", "NO"] }), NOW);
+    expect(vm.outcomeCount).toBe(2);
+    expect(vm.valid).toBe(true);
+  });
+
+  test("the close window is clamped to something a market can use", () => {
+    expect(normalizeCloseMinutes("15")).toBe(15);
+    expect(normalizeCloseMinutes("")).toBe(CLOSE_MINUTES.fallback);
+    expect(normalizeCloseMinutes(0)).toBe(CLOSE_MINUTES.fallback);
+    expect(normalizeCloseMinutes(-5)).toBe(CLOSE_MINUTES.fallback);
+    expect(normalizeCloseMinutes("abc")).toBe(CLOSE_MINUTES.fallback);
+    expect(normalizeCloseMinutes(99_999)).toBe(CLOSE_MINUTES.max);
+    expect(normalizeCloseMinutes(7.9)).toBe(7);
+    expect(customDraftVm(draft({ minutes: 0 }), NOW).minutes).toBe(CLOSE_MINUTES.fallback);
+  });
+
+  test("peer text stays RAW in the VM — escaping is the html layer's job", () => {
+    const vm = customDraftVm(draft({ title: "<b>hi</b>", outcomes: ["<i>a</i>", "b"] }), NOW);
+    expect(vm.title).toBe("<b>hi</b>");
+    expect(vm.outcomes[0]!.key).toBe("<i>a</i>");
+    expect(vm.spec?.params.title).toBe("<b>hi</b>");
+  });
+
+  test("the templates are on-palette and the presets are inside the clamp", () => {
+    for (const t of OUTCOME_TEMPLATES) {
+      expect(customDraftVm(draft({ outcomes: [...t.outcomes] }), NOW).valid).toBe(true);
+    }
+    for (const p of CLOSE_PRESETS) expect(normalizeCloseMinutes(p.minutes)).toBe(p.minutes);
   });
 });

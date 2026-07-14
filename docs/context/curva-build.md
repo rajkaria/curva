@@ -11,7 +11,7 @@ globs:
   - "vitest.config.ts"
   - "eslint.config.js"
   - "web/**"
-updated: 2026-07-13  # S15+S16 done: browser demo at web/demo/, one-tap pairing, trust hardening; 296 tests
+updated: 2026-07-14  # app shell adopts the landing design system + market composer; 307 tests
 ---
 
 # Curva — build context
@@ -112,6 +112,20 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
 
 ## Recent changes — packages and why
 
+- **App design system + market composer (2026-07-14)** — the app shell now *is* the
+  landing page's design system (Fraunces / Inter / IBM Plex Mono, `--pitch` #46e39c
+  over `#07090e`, aurora + grain, eyebrow card headings, gradient primary buttons).
+  One stylesheet, duplicated verbatim in `web/demo/index.html` and
+  `apps/terrace/index.html` (the Pear shell drops the Google-Fonts link — offline —
+  and degrades to Georgia/system). **Keep the two in sync.** The "Create your own
+  market" form became a **composer**: outcome-set templates, editable outcome chips,
+  close-window presets, a live preview of the exact market card (even-money odds),
+  and a CTA enabled on exactly `customDraftVm().valid` — the same condition the fold
+  uses, so an enabled button can never sign a spec `apply` drops. New in `terrace-ui`:
+  `customDraftVm`/`normalizeCloseMinutes`/`OUTCOME_TEMPLATES`/`CLOSE_PRESETS`
+  (vm.ts) + `customDraftHtml`/`outcomeChipHtml` (html.ts, escaping as ever).
+  Composer inputs carry `data-nosnap` so the render loop's input-snapshot can't
+  resurrect a draft that was just opened. **307 tests** (+11).
 - **Custom markets (NEW, 2026-07-08)** — the general-platform unlock. `protocol.ts`:
   `"custom"` added to `MarketKind`. `apply.ts`: `"custom"` added to the `KINDS`
   whitelist (the one line that gated football-only; the fold already validated

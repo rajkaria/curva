@@ -29,6 +29,7 @@ import { fallbackQuip, renderForViewer, type PoolSummary, type Translator } from
 import {
   correctScore,
   customMarket,
+  CUSTOM_MARKET_LIMITS,
   firstScorer,
   goalInWindow,
   matchResult,
@@ -597,6 +598,113 @@ export function buildCustomMarket(draft: CustomMarketDraft): CustomMarketResult 
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "invalid market" };
   }
+}
+
+// ── the composer: a live draft the UI can render before anything is signed ────
+
+/** One-tap outcome sets. The keys in the first three are the allowlisted ones the
+ *  bars/labels already colour (see SAFE_CLASS) — a composer that starts on-palette. */
+export const OUTCOME_TEMPLATES: readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly outcomes: readonly string[];
+}[] = [
+  { id: "binary", label: "Yes / No", outcomes: ["YES", "NO"] },
+  { id: "1x2", label: "Home / Draw / Away", outcomes: ["HOME", "DRAW", "AWAY"] },
+  { id: "ou", label: "Over / Under", outcomes: ["OVER", "UNDER"] },
+];
+
+/** One-tap betting windows, so the common case is never a number keyboard. */
+export const CLOSE_PRESETS: readonly { readonly label: string; readonly minutes: number }[] = [
+  { label: "15m", minutes: 15 },
+  { label: "1h", minutes: 60 },
+  { label: "3h", minutes: 180 },
+  { label: "24h", minutes: 1440 },
+];
+
+/** Betting can close a minute out at the soonest, a week out at the latest. */
+export const CLOSE_MINUTES = { min: 1, max: 7 * 24 * 60, fallback: 60 } as const;
+
+/** Clamp whatever the minutes box holds into a window the market can actually use. */
+export function normalizeCloseMinutes(raw: unknown): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < CLOSE_MINUTES.min) return CLOSE_MINUTES.fallback;
+  return Math.min(n, CLOSE_MINUTES.max);
+}
+
+export interface DraftOutcomeVm {
+  /** RAW peer text — escaped once, later, in the html layer. */
+  readonly key: string;
+  /** Even split at open: an empty pool has no odds yet, so every outcome is level. */
+  readonly pct: number;
+  readonly oddsLabel: string;
+}
+
+/** What the composer shows: the market as it will look, plus why it can't be opened yet. */
+export interface CustomDraftVm {
+  readonly title: string;
+  readonly titleCount: number;
+  readonly titleMax: number;
+  readonly titleOver: boolean;
+  readonly outcomes: readonly DraftOutcomeVm[];
+  readonly outcomeCount: number;
+  readonly maxOutcomes: number;
+  readonly outcomeMax: number;
+  readonly minutes: number;
+  readonly closesAt: number;
+  readonly closesLabel: string;
+  /** True iff the draft would survive `apply` — the CTA is enabled on exactly this. */
+  readonly valid: boolean;
+  /** A human reason it isn't signable yet (null once valid). */
+  readonly error: string | null;
+  readonly spec: MarketSpec | null;
+}
+
+export interface CustomDraft {
+  readonly title: string;
+  readonly outcomes: readonly string[];
+  readonly minutes: number;
+}
+
+/** `customMarket:` is an engine prefix — the terrace reads the reason, not the call stack. */
+function draftError(message: string): string {
+  const m = message.replace(/^customMarket:\s*/, "");
+  return m.charAt(0).toUpperCase() + m.slice(1);
+}
+
+/**
+ * The live composer VM: a draft → the exact market card it will become, the
+ * even-money odds it opens at, and (when it isn't signable) the one reason why.
+ * Validity is delegated to {@link buildCustomMarket} — so an enabled button and a
+ * spec the fold keeps are the same condition, and the preview can never promise a
+ * market that `apply` would drop.
+ */
+export function customDraftVm(draft: CustomDraft, now: number): CustomDraftVm {
+  const title = draft.title.trim();
+  const keys = draft.outcomes.map((o) => o.trim()).filter((o) => o.length > 0);
+  const minutes = normalizeCloseMinutes(draft.minutes);
+  const built = buildCustomMarket({ title, outcomesText: keys.join("\n") });
+  const n = keys.length;
+  return {
+    title: draft.title,
+    titleCount: title.length,
+    titleMax: CUSTOM_MARKET_LIMITS.titleMax,
+    titleOver: title.length > CUSTOM_MARKET_LIMITS.titleMax,
+    outcomes: keys.map((key) => ({
+      key,
+      pct: n > 0 ? Math.round((100 / n) * 100) / 100 : 0,
+      oddsLabel: n > 0 ? `${n.toFixed(2)}×` : "—",
+    })),
+    outcomeCount: n,
+    maxOutcomes: CUSTOM_MARKET_LIMITS.maxOutcomes,
+    outcomeMax: CUSTOM_MARKET_LIMITS.outcomeMax,
+    minutes,
+    closesAt: now + minutes * 60_000,
+    closesLabel: countdown(minutes * 60_000),
+    valid: built.ok,
+    error: built.ok ? null : draftError(built.error),
+    spec: built.ok ? built.spec : null,
+  };
 }
 
 // ── micro-rounds: the live-demo killer, planned deterministically (F2) ────────

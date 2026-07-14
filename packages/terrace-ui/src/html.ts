@@ -12,6 +12,8 @@
 import {
   DEMO_BANNER,
   type ChatLineVm,
+  type CustomDraftVm,
+  type DraftOutcomeVm,
   type EscrowVm,
   type HeaderVm,
   type LeaderboardVm,
@@ -46,7 +48,7 @@ export const barClass = (k: string): string => (SAFE_CLASS.has(k) ? "b" + k : ""
 /** Market title + status pills. The closes pill ticks live (see cdSpanHtml). */
 export function marketHeadHtml(vm: MarketVm): string {
   return `<div class="card stack">
-    <h2>${esc(vm.title)}</h2>
+    <h2 class="mkt-title">${esc(vm.title)}</h2>
     <div class="row"><span class="pill">${esc(vm.kind)}</span><span class="pill">${vm.statusLabel}</span><span class="pill">fee ${vm.feeBps}bps</span>${
       vm.closesLabel && vm.closesAt !== null
         ? `<span class="pill">${cdSpanHtml(vm.closesAt, "closes in ", vm.closesLabel)}</span>`
@@ -153,6 +155,51 @@ export function escrowHtml(vm: EscrowVm): string {
         .join(" ")}</div></div>`
     : `<div class="row"><span class="pill">Tier 2 · Escrow</span><span class="muted">standby</span></div>`;
   return `<div class="stack">${tier1}${tier2}<div class="muted">${esc(vm.note)}</div></div>`;
+}
+
+// ── the composer: the market as it will look, before a byte is signed ─────────
+
+/**
+ * One editable outcome chip. The key is peer text (escaped in both the label and
+ * the remove button's aria-label); the index is a number the shell reads back off
+ * `data-i` to know which chip was dropped — peer strings never reach a handler.
+ */
+export function outcomeChipHtml(key: string, index: number): string {
+  return `<span class="chip-out"><i class="${`dot ${barClass(key)}`.trim()}"></i><span class="${outcomeClass(key)}">${esc(key)}</span><button class="x" type="button" data-i="${index}" aria-label="Remove ${esc(key)}">✕</button></span>`;
+}
+
+/** One preview row: outcome, the pool it opens with (nothing), its even-money odds. */
+function draftOutcomeRowHtml(o: DraftOutcomeVm): string {
+  return `<div class="draft-row">
+    <div class="row"><span class="${outcomeClass(o.key)}">${esc(o.key)}</span><span class="muted">0.00 USDt</span><span class="odds-x">${esc(o.oddsLabel)}</span></div>
+    <div class="bar"><span class="${barClass(o.key)}" style="width:${o.pct}%"></span></div>
+  </div>`;
+}
+
+/**
+ * The live preview card — the exact market the terrace will see, rendered from
+ * the same VM that decides whether the draft is signable. When the draft can't be
+ * opened, the status line says why instead of the odds pretending otherwise.
+ */
+export function customDraftHtml(vm: CustomDraftVm): string {
+  const title = vm.title.trim()
+    ? `<div class="draft-title">${esc(vm.title.trim())}</div>`
+    : `<div class="draft-title empty">Your question goes here…</div>`;
+  const rows = vm.outcomes.length
+    ? vm.outcomes.map(draftOutcomeRowHtml).join("")
+    : `<div class="muted">Pick a template or add outcomes — two at least.</div>`;
+  const status = vm.valid
+    ? `<div class="draft-status ok">Even money at open · ${vm.outcomeCount} outcomes · settles by crowd attestation</div>`
+    : `<div class="draft-status warn">${esc(vm.error ?? "Draft incomplete")}</div>`;
+  return `<div class="draft">
+    <div class="draft-head">
+      <span class="pill">preview</span>
+      <span class="pill">closes in ${esc(vm.closesLabel)}</span>
+    </div>
+    ${title}
+    <div class="stack draft-odds">${rows}</div>
+    ${status}
+  </div>`;
 }
 
 /** Quorum progress: per-outcome thresholds + who attested what. All keys/names escaped. */

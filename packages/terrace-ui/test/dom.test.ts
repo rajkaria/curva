@@ -11,12 +11,14 @@ import {
   barClass,
   cdSpanHtml,
   chatLineHtml,
+  customDraftHtml,
   demoBannerHtml,
   esc,
   escrowHtml,
   headerWidgetsHtml,
   leaderboardHtml,
   marketHeadHtml,
+  outcomeChipHtml,
   outcomeClass,
   outcomeRowHtml,
   pnlHtml,
@@ -25,6 +27,7 @@ import {
   renderCard,
   tallyHtml,
 } from "../src/html.js";
+import { customDraftVm } from "../src/vm.js";
 import type {
   ChatLineVm,
   EscrowVm,
@@ -243,6 +246,53 @@ describe("S14 surfaces stay inert under hostile peer strings", () => {
     const host2 = mount(escrowHtml(standby));
     expect(host2.textContent).toContain("standby");
     expect(host2.querySelectorAll(".pill.ok")).toHaveLength(1); // only Tier 1
+  });
+});
+
+describe("the composer's markup — a hostile draft is still just text", () => {
+  const NOW = 1_700_000_000_000;
+
+  test("customDraftHtml renders the market as it will look, odds and all", () => {
+    const vm = customDraftVm({ title: "Will we ship by Friday?", outcomes: ["YES", "NO"], minutes: 60 }, NOW);
+    const host = mount(customDraftHtml(vm));
+    expect(host.querySelector(".draft-title")!.textContent).toBe("Will we ship by Friday?");
+    expect(host.querySelectorAll(".draft-row")).toHaveLength(2);
+    expect(host.textContent).toContain("2.00×");
+    expect(host.querySelector(".draft-status")!.className).toContain("ok");
+    // even money at open: both bars half the book, coloured by the outcome allowlist
+    const bars = Array.from(host.querySelectorAll<HTMLElement>(".bar > span"));
+    expect(bars.map((b) => b.style.width)).toEqual(["50%", "50%"]);
+    expect(bars.map((b) => b.className)).toEqual(["bYES", "bNO"]);
+  });
+
+  test("an invalid draft shows the reason, never fake odds", () => {
+    const vm = customDraftVm({ title: "", outcomes: ["YES"], minutes: 60 }, NOW);
+    const host = mount(customDraftHtml(vm));
+    const status = host.querySelector(".draft-status")!;
+    expect(status.className).toContain("warn");
+    expect(status.textContent).toBe(vm.error);
+    expect(host.querySelector(".draft-title")!.className).toContain("empty");
+  });
+
+  test("hostile title and outcome keys stay inert text in the preview", () => {
+    const vm = customDraftVm({ title: HOSTILE, outcomes: [HOSTILE, "NO"], minutes: 60 }, NOW);
+    const host = mount(customDraftHtml(vm));
+    expect(host.querySelector("img, script")).toBeNull();
+    expect(host.querySelector(".draft-title")!.textContent).toBe(HOSTILE);
+    expect(host.textContent).toContain(HOSTILE);
+    // a peer string never becomes a class name — only the allowlist does
+    expect(host.querySelector(".bar > span")!.className).toBe("");
+  });
+
+  test("outcomeChipHtml escapes the key in text AND in the remove button's label", () => {
+    const host = mount(outcomeChipHtml(HOSTILE, 3));
+    expect(host.querySelector("img, script")).toBeNull();
+    expect(host.querySelector(".chip-out")!.textContent).toContain(HOSTILE);
+    const x = host.querySelector<HTMLElement>("button.x")!;
+    expect(x.dataset.i).toBe("3"); // the index — never the peer string — routes the click
+    expect(x.getAttribute("aria-label")).toBe(`Remove ${HOSTILE}`);
+    expect(host.querySelector(".dot")!.className).toBe("dot"); // no class from peer text
+    expect(mount(outcomeChipHtml("YES", 0)).querySelector(".dot")!.className).toBe("dot bYES");
   });
 });
 

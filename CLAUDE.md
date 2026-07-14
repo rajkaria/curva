@@ -15,7 +15,10 @@ Per-feature context lives under `docs/context/`; the router loads the doc whose
 - Gates: `npm run check` (typecheck + lint + test), `npm run build`, `npm run demo`,
   `npm run build:demo` (regenerates the committed `web/demo/bundle.js`).
   Node ≥20.19/22.12/24 (default local `node` is EOL 21.7.2 — use brew node@20/25).
-- Status: **S0–S16 done — the whole audit roadmap is closed.** 296 tests green.
+- Status: **S0–S16 done — the whole audit roadmap is closed.** 307 tests green.
+  The app shell (Pear + browser demo) now runs the landing page's design system,
+  and the create-market form is a live composer — keep the two shells' `<style>`
+  blocks in sync (`web/demo/index.html` ↔ `apps/terrace/index.html`).
   Custom markets, one-tap pairing (signed protomux handshake + copy/QR), the
   zero-install **browser demo at `web/demo/`** (real app.js over
   MemoryTerraceNode + scripted co-fans, bundle committed), and S16 trust
