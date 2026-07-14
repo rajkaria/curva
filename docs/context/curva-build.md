@@ -28,12 +28,19 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   stand, NOT the tifo/choreographed display). Committed + pushed: `origin/main`
   @ `4afc639` (258 subs/69 files). Repo renamed to **github.com/rajkaria/curva**,
   git remote URL updated; repo public, MIT.
-- **S0–S16 DONE — the whole audit roadmap is closed, on `origin/main` @ `878d1ee`,
+- **S0–S16 DONE — the whole audit roadmap is closed. `origin/main` @ `7a3cfa1`,
   deployed to prod.** ([IMPROVEMENTS.md](../IMPROVEMENTS.md) traceability table all
-  ✅). **296 tests green**; gates are `npm run check` / `build` / `demo` /
+  ✅). **307 tests green**; gates are `npm run check` / `build` / `demo` /
   **`build:demo`** (the browser-demo bundle). The live browser demo is verified
-  serving at **https://curva-rouge.vercel.app/demo/** (HTTP 200, bundle 200,
-  banner + landing CTA confirmed post-deploy 2026-07-13).
+  serving at **https://curva-rouge.vercel.app/demo/** (index + bundle re-checked
+  live after the 2026-07-14 push).
+- **App design system + market composer (2026-07-14, live).** The Pear app and the
+  browser demo now wear the landing page's design system, and the create-market
+  form is a live composer (templates → outcome chips → close-window presets → a
+  preview of the exact market card). Details under *Recent changes*. The two shells'
+  `<style>` blocks are duplicated verbatim — **edit both** (`web/demo/index.html`,
+  `apps/terrace/index.html`); the Pear one has no Google-Fonts link (offline) and
+  degrades to Georgia/system.
 - **S15 (2026-07-13): zero-install browser demo + one-tap pairing.**
   `web/demo/` serves the REAL `apps/terrace/app.js` over `MemoryTerraceNode`
   (same fold, digest-proven vs `foldMessages`) with three scripted co-fan bots
@@ -235,6 +242,19 @@ Submission + judge review: [SUBMISSION.md](../SUBMISSION.md).
   as one), fits "the market is the crowd"; README etymology rewritten by hand (a
   curva is the stand, not the choreographed display) then a case-aware word-boundary
   sweep for the rest; gates re-verified green (237/build/demo).
+- **The app wears the landing's design system, not its own theme (2026-07-14).**
+  A judge lands on the site, clicks through to `/demo/`, and must not feel a seam —
+  so the app shell adopted `web/index.html`'s tokens wholesale rather than keeping
+  the old purple-on-navy theme. Cost: one stylesheet duplicated in two shells (no
+  build step exists to share it, and adding one for a static demo would be worse).
+  Mitigation: both files carry a "keep in sync" comment.
+- **The composer's CTA is gated on the fold's own validity (2026-07-14).**
+  `customDraftVm().valid` delegates to `buildCustomMarket` → `customMarket`, whose
+  caps mirror `apply` — so "button enabled" and "spec the fold keeps" are the same
+  condition by construction, and the live preview can never promise a market that
+  gets dropped. Composer inputs carry `data-nosnap`: the render loop's input
+  snapshot/restore (which exists to protect half-typed stakes) would otherwise
+  resurrect the title of a market that was just opened.
 - **Public face = a static `web/` site, NOT the app.** The Pear app can't run in a
   plain browser (Bare modules: autobase/hyperswarm) and "no server" is the thesis —
   so the subdomain serves a self-contained landing + docs page on Vercel; the app
@@ -254,9 +274,17 @@ If you touch anything the demo bundles (app.js, terrace-ui, terrace-base,
 fixtures), re-run `npm run build:demo` and commit the regenerated
 `web/demo/bundle.js` — the Vercel deploy serves the committed file as-is.
 
-**Branch:** S15+S16 fast-forwarded to `origin/main` @ `878d1ee` (from `f33701a`,
-pushed from worktree `claude/curva-improvements-2c685e`) and auto-deployed to
-prod — demo verified live. Start next from a fresh worktree off `main`.
+**Branch:** the design-system + composer work is on `origin/main` @ `7a3cfa1`
+(pushed 2026-07-14 from worktree `claude/market-creation-design-393e53`) and
+auto-deployed to prod — index + bundle verified live. Start next from a fresh
+worktree off `main` (and run `npm install` in it — a fresh worktree has no
+`node_modules`).
+
+**If you touch the app's look:** the composer is `renderComposer()` in
+`apps/terrace/app.js`, its logic is `customDraftVm`/`customDraftHtml` in
+`@curva/terrace-ui`, and the CSS lives in BOTH shells. Money strings stay as
+`usdt()` prints them — it never rounds by design (inverse-tested against
+`parseUsdt`), so "Returns ~15.641026" is intentional, not a bug to "fix".
 
 **Human-only (see SUBMISSION.md):**
 1. Add the **subdomain** in Vercel → project `curva` → Settings → Domains.
